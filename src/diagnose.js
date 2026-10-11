@@ -167,7 +167,7 @@ function checkBranch(cwd, add, root) {
 
   const hasCommits = run("git", ["rev-parse", "--verify", "--quiet", "HEAD"], cwd).ok;
   if (!hasCommits) {
-    checkIgnoreFile(root, add);
+    if (!isHomeFolder(root)) checkIgnoreFile(root, add);
     add("warn", "First commit",
       `Branch "${branch}" has no commits yet, so there is nothing to push.`,
       {

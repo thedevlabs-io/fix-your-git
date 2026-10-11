@@ -2,7 +2,8 @@
 
 const readline = require("node:readline");
 
-const LATE_INPUT_MS = 300;
+const LATE_INPUT_QUIET_MS = 300;
+const LATE_INPUT_MAX_MS = 2000;
 const STALE_INPUT_MS = 100;
 
 function createPrompter() {
@@ -84,19 +85,28 @@ function readPastedLines() {
   });
 }
 
-// Swallow paste chunks still in flight so they never reach the shell.
+// Swallow paste chunks still in flight so they never reach the shell: wait
+// until input has been quiet for a moment, but never longer than the cap.
 function discardLateInput() {
   return new Promise(resolve => {
-    const discard = () => {};
-    process.stdin.setRawMode(true);
-    process.stdin.on("data", discard);
-    process.stdin.resume();
-    setTimeout(() => {
-      process.stdin.off("data", discard);
+    let quietTimer = null;
+    const finish = () => {
+      clearTimeout(quietTimer);
+      clearTimeout(capTimer);
+      process.stdin.off("data", restartQuietTimer);
       process.stdin.setRawMode(false);
       process.stdin.pause();
       resolve();
-    }, LATE_INPUT_MS);
+    };
+    const restartQuietTimer = () => {
+      clearTimeout(quietTimer);
+      quietTimer = setTimeout(finish, LATE_INPUT_QUIET_MS);
+    };
+    const capTimer = setTimeout(finish, LATE_INPUT_MAX_MS);
+    process.stdin.setRawMode(true);
+    process.stdin.on("data", restartQuietTimer);
+    process.stdin.resume();
+    restartQuietTimer();
   });
 }
 
