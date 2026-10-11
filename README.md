@@ -41,8 +41,9 @@ fix-your-git explain "error: src refspec main does not match any"
 git push 2>&1 | fix-your-git explain
 ```
 
-It recognises the usual push failures: `Permission denied (publickey)`, removed password
-authentication, 403 and `Permission to ... denied`, `Repository not found`, rejected pushes,
+It recognises the usual push and pull failures: `Permission denied (publickey)`, removed
+password authentication, `terminal prompts disabled`, 403 and `Permission to ... denied`,
+`Repository not found`, rejected pushes and tags, divergent branches, local changes in the way,
 unrelated histories, missing upstream, files over 100 MB, GH007 private email, and network
 errors.
 
