@@ -23,12 +23,12 @@ function safeRemoteUrl(value) {
 function checkGit(cwd, add) {
   const gitVersion = run("git", ["--version"], cwd);
   if (!gitVersion.ok) {
-    add("error", "Git is available",
+    add("error", "Git installed",
       "Git was not found or could not be started.",
       { hint: "Install Git from https://git-scm.com/downloads, then close and reopen your terminal so it can find git." });
     return false;
   }
-  add("ok", "Git is available", gitVersion.stdout);
+  add("ok", "Git installed", gitVersion.stdout);
   return true;
 }
 
@@ -39,7 +39,7 @@ function isHomeFolder(folder) {
 function checkRepository(cwd, add) {
   const repo = run("git", ["rev-parse", "--is-inside-work-tree"], cwd);
   if ((!repo.ok || repo.stdout !== "true") && isHomeFolder(cwd)) {
-    add("error", "Current folder belongs to a Git repository",
+    add("error", "Git repository",
       "You are in your home folder, not a project folder.",
       {
         hint: "Do not run git init here: it would track every file you own. Move into your project folder and run git-doctor again (replace the path).",
@@ -48,7 +48,7 @@ function checkRepository(cwd, add) {
     return false;
   }
   if (!repo.ok || repo.stdout !== "true") {
-    add("error", "Current folder belongs to a Git repository",
+    add("error", "Git repository",
       "This folder is not inside a Git working tree.",
       {
         hint: "If this is the wrong folder, cd into your project first. If this is a new project, start a repository here.",
@@ -58,14 +58,14 @@ function checkRepository(cwd, add) {
   }
   const root = run("git", ["rev-parse", "--show-toplevel"], cwd).stdout;
   if (root && isHomeFolder(root)) {
-    add("warn", "Git repository detected",
+    add("warn", "Git repository",
       `Your whole home folder (${root}) is a Git repository, usually from running git init in the wrong place.`,
       {
         hint: "If you did not mean to do that, delete the hidden .git folder in your home folder (your files stay), then run git init -b main inside your project folder. If you track dotfiles there on purpose, ignore this."
       });
     return true;
   }
-  add("ok", "Git repository detected", `Repository root: ${root || "(could not determine root)"}`);
+  add("ok", "Git repository", `Repository root: ${root || "(could not determine root)"}`);
   return true;
 }
 
