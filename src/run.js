@@ -2,13 +2,13 @@
 
 const { spawnSync } = require("node:child_process");
 
-function run(command, args, cwd) {
+function run(command, args, cwd, timeout = 10000) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     shell: false,
     windowsHide: true,
-    timeout: 10000,
+    timeout,
     stdio: ["ignore", "pipe", "pipe"]
   });
 

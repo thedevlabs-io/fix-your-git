@@ -281,11 +281,15 @@ function checkUpstream(cwd, add, { branch, hasCommits }, { remotes }) {
   }
 }
 
+const GH_API_TIMEOUT_MS = 5000;
+
 function readGitHubAccount(cwd) {
   if (!commandExists("gh", cwd)) return { installed: false, authenticated: false };
-  const auth = run("gh", ["auth", "status", "--hostname", "github.com"], cwd);
+  // gh auth status validates the token online, so offline it looks signed out.
+  // gh auth token only reads the stored login; its output is never shown.
+  const auth = run("gh", ["auth", "token", "--hostname", "github.com"], cwd);
   if (!auth.ok) return { installed: true, authenticated: false };
-  const user = run("gh", ["api", "user", "--jq", '[.login, (.id | tostring), (.name // "")] | join("\\t")'], cwd);
+  const user = run("gh", ["api", "user", "--jq", '[.login, (.id | tostring), (.name // "")] | join("\\t")'], cwd, GH_API_TIMEOUT_MS);
   const [login = "", id = "", name = ""] = user.ok ? user.stdout.split("\t") : [];
   return { installed: true, authenticated: true, login, id, name };
 }
@@ -302,7 +306,9 @@ function checkGitHubCli(add, github) {
   }
   if (github.authenticated) {
     add("ok", "GitHub CLI authentication",
-      `gh is signed in${github.login ? ` as ${github.login}` : ""}. This does not guarantee the remote's authentication method or repository permissions are correct.`);
+      github.login
+        ? `gh is signed in as ${github.login}. This does not guarantee the remote's authentication method or repository permissions are correct.`
+        : "gh has a saved login, but GitHub could not be reached to load your profile. Check your internet connection if pushing fails.");
     return;
   }
   add("warn", "GitHub CLI authentication",

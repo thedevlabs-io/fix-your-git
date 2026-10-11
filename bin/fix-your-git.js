@@ -98,6 +98,7 @@ async function main(args) {
 }
 
 function runCheck() {
+  if (process.stdout.isTTY) console.log(paint("dim", "Checking your Git and GitHub setup..."));
   const report = diagnose(process.cwd());
   printReport(report);
   if (report.checks.some(check => check.status === "error")) process.exitCode = 1;
