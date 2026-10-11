@@ -59,4 +59,17 @@ function printReport(report) {
   printSummary(report.checks);
 }
 
-module.exports = { printReport };
+function printExplanation(result, firstErrorLine) {
+  if (!result) {
+    console.log(`\n${paint("yellow", "!")} git-doctor does not recognise this error yet.`);
+    if (firstErrorLine) console.log(`  Search the web for this line: ${paint("cyan", firstErrorLine.trim())}`);
+    console.log("  For a full check of your setup, run git-doctor inside your project folder.");
+    return;
+  }
+  console.log(`\n${paint("bold", result.title)}`);
+  console.log(`  ${result.cause}\n`);
+  console.log(paint("bold", "What to do"));
+  printFix(result);
+}
+
+module.exports = { printReport, printExplanation };

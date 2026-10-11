@@ -3,20 +3,27 @@
 
 const { version } = require("../package.json");
 const { diagnose } = require("../src/diagnose");
-const { printReport } = require("../src/report");
+const { explain, firstErrorLine } = require("../src/explain");
+const { readPastedText } = require("../src/prompt");
+const { printReport, printExplanation } = require("../src/report");
 
 const USAGE = `git-doctor ${version}
 Finds out why git push is not working and tells you what to run.
 
 Usage:
   git-doctor            Check this folder's Git and GitHub setup
+  git-doctor explain    Paste an error from git and get a plain-English fix
   git-doctor --help     Show this help
   git-doctor --version  Show the version
+
+Examples:
+  git-doctor explain "fatal: Authentication failed"
+  git push 2>&1 | git-doctor explain
 
 Run it from inside your project folder. It only reads your setup; it
 never changes files or settings.`;
 
-const OPTIONS = ["--help", "--version"];
+const OPTIONS = ["--help", "--version", "explain"];
 
 function editDistance(a, b) {
   const row = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -34,7 +41,10 @@ function editDistance(a, b) {
 
 function closestOption(input) {
   const ranked = OPTIONS
-    .map(option => ({ option, distance: editDistance(input.replace(/^-*/, "--"), option) }))
+    .map(option => ({
+      option,
+      distance: editDistance(option.startsWith("--") ? input.replace(/^-*/, "--") : input, option)
+    }))
     .sort((a, b) => a.distance - b.distance);
   return ranked[0].distance <= 2 ? ranked[0].option : "";
 }
@@ -47,14 +57,30 @@ function failUnknown(input) {
   process.exitCode = 2;
 }
 
-function main(args) {
-  const [first] = args;
+async function runExplain(args) {
+  const text = args.length > 0
+    ? args.join(" ")
+    : await readPastedText("Paste the error from git, then press Enter on an empty line:");
+  if (!text.trim()) {
+    console.error('git-doctor: nothing to explain. Try: git-doctor explain "the error message"');
+    process.exitCode = 2;
+    return;
+  }
+  printExplanation(explain(text), firstErrorLine(text));
+}
+
+async function main(args) {
+  const [first, ...rest] = args;
   if (first === "--help" || first === "-h" || first === "help") {
     console.log(USAGE);
     return;
   }
   if (first === "--version" || first === "-v") {
     console.log(version);
+    return;
+  }
+  if (first === "explain") {
+    await runExplain(rest);
     return;
   }
   if (first !== undefined) {
@@ -67,9 +93,7 @@ function main(args) {
   if (report.checks.some(check => check.status === "error")) process.exitCode = 1;
 }
 
-try {
-  main(process.argv.slice(2));
-} catch (error) {
+main(process.argv.slice(2)).catch(error => {
   console.error(`git-doctor could not complete: ${error.message}`);
   process.exitCode = 1;
-}
+});
