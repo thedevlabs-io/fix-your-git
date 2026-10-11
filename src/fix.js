@@ -44,7 +44,7 @@ async function runFixes(report, cwd) {
     console.log("\nNothing here can be fixed automatically. Follow the steps above.");
     return 0;
   }
-  console.log(paint("bold", `\ngit-doctor can fix ${fixable.length} of these for you.`));
+  console.log(paint("bold", `\nfix-your-git can fix ${fixable.length} of these for you.`));
   console.log(paint("dim", "It shows each command and only runs it if you type y."));
 
   let fixed = 0;

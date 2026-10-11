@@ -1,10 +1,10 @@
 {
-  "name": "git-doctor",
+  "name": "fix-your-git",
   "version": "0.1.0",
   "description": "Beginner-friendly diagnostics for Git and GitHub push problems",
   "type": "commonjs",
   "bin": {
-    "git-doctor": "./bin/git-doctor.js"
+    "fix-your-git": "./bin/fix-your-git.js"
   },
   "engines": {
     "node": ">=18"
@@ -24,7 +24,7 @@
     "README.md"
   ],
   "scripts": {
-    "start": "node ./bin/git-doctor.js",
-    "check": "node --check ./bin/git-doctor.js && node --check ./src/diagnose.js && node --check ./src/run.js && node --check ./src/report.js && node --check ./src/style.js && node --check ./src/explain.js && node --check ./src/prompt.js && node --check ./src/fix.js"
+    "start": "node ./bin/fix-your-git.js",
+    "check": "node --check ./bin/fix-your-git.js && node --check ./src/diagnose.js && node --check ./src/run.js && node --check ./src/report.js && node --check ./src/style.js && node --check ./src/explain.js && node --check ./src/prompt.js && node --check ./src/fix.js"
   }
 }

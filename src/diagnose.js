@@ -43,7 +43,7 @@ function checkRepository(cwd, add) {
     add("error", "Git repository",
       "You are in your home folder, not a project folder.",
       {
-        hint: "Do not run git init here: it would track every file you own. Move into your project folder and run git-doctor again (replace the path).",
+        hint: "Do not run git init here: it would track every file you own. Move into your project folder and run fix-your-git again (replace the path).",
         commands: ["cd path/to/your-project"]
       });
     return null;

@@ -8,8 +8,8 @@ const KNOWN_ERRORS = [
     explain: () => ({
       title: "GitHub did not accept an SSH key from this computer",
       cause: "Your remote uses SSH, and either you have no SSH key or GitHub does not have its .pub half.",
-      hint: "Run git-doctor in your project folder. It checks for a key and shows the exact command to switch this remote to HTTPS, which avoids SSH keys entirely.",
-      commands: ["git-doctor"]
+      hint: "Run fix-your-git in your project folder. It checks for a key and shows the exact command to switch this remote to HTTPS, which avoids SSH keys entirely.",
+      commands: ["fix-your-git"]
     })
   },
   {
@@ -44,7 +44,7 @@ const KNOWN_ERRORS = [
     explain: () => ({
       title: "GitHub cannot find that repository",
       cause: "The remote URL has a typo, the repository was never created, or it is private and your account cannot see it.",
-      hint: "Print the URL and open it in your browser while signed in to GitHub. If the page is a 404, fix the URL (git-doctor shows the command) or create the repository first.",
+      hint: "Print the URL and open it in your browser while signed in to GitHub. If the page is a 404, fix the URL (fix-your-git shows the command) or create the repository first.",
       commands: ["git remote -v"]
     })
   },
@@ -89,7 +89,7 @@ const KNOWN_ERRORS = [
     explain: () => ({
       title: "This folder is not a Git repository",
       cause: "You are probably in the wrong folder, or the project was never set up with git init.",
-      hint: "cd into your project folder and run git-doctor. For a brand new project, start a repository there.",
+      hint: "cd into your project folder and run fix-your-git. For a brand new project, start a repository there.",
       commands: ["git init -b main"]
     })
   },
@@ -107,8 +107,8 @@ const KNOWN_ERRORS = [
     explain: ([, remote]) => ({
       title: `There is no remote called ${remote}`,
       cause: "Git does not know where to push because this project is not connected to GitHub yet.",
-      hint: "Run git-doctor in your project folder; it shows the command to create and connect a GitHub repository.",
-      commands: ["git-doctor"]
+      hint: "Run fix-your-git in your project folder; it shows the command to create and connect a GitHub repository.",
+      commands: ["fix-your-git"]
     })
   },
   {
@@ -116,7 +116,7 @@ const KNOWN_ERRORS = [
     explain: () => ({
       title: "Git does not know your name and email",
       cause: "Every commit records who made it, and these settings are empty.",
-      hint: "Set them once for this computer. git-doctor can suggest your GitHub no-reply email.",
+      hint: "Set them once for this computer. fix-your-git can suggest your GitHub no-reply email.",
       commands: ['git config --global user.name "Your Name"', 'git config --global user.email "you@example.com"']
     })
   },
@@ -137,8 +137,8 @@ const KNOWN_ERRORS = [
     explain: () => ({
       title: "Your commit would publish your private email",
       cause: "Your GitHub settings block pushes that contain your personal email address.",
-      hint: "Switch to your GitHub no-reply address (git-doctor shows yours when gh is signed in), then re-author the last commit.",
-      commands: ["git-doctor", "git commit --amend --reset-author --no-edit", "git push"]
+      hint: "Switch to your GitHub no-reply address (fix-your-git shows yours when gh is signed in), then re-author the last commit.",
+      commands: ["fix-your-git", "git commit --amend --reset-author --no-edit", "git push"]
     })
   },
   {

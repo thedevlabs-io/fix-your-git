@@ -1,4 +1,4 @@
-# git-doctor
+# fix-your-git
 
 A beginner-friendly, cross-platform CLI that diagnoses common Git/GitHub push setup problems.
 
@@ -20,7 +20,7 @@ npm start
 To test it against another project, run the script from that project's directory:
 
 ```bash
-node /path/to/git-doctor/bin/git-doctor.js
+node /path/to/fix-your-git/bin/fix-your-git.js
 ```
 
 ## Usage
@@ -28,17 +28,17 @@ node /path/to/git-doctor/bin/git-doctor.js
 Run it from inside your project folder:
 
 ```bash
-git-doctor            # check your setup and get numbered steps to fix it
-git-doctor --fix      # the same check, then offer to fix the simple problems
-git-doctor explain    # paste an error from git and get a plain-English fix
-git-doctor --help
+fix-your-git            # check your setup and get numbered steps to fix it
+fix-your-git --fix      # the same check, then offer to fix the simple problems
+fix-your-git explain    # paste an error from git and get a plain-English fix
+fix-your-git --help
 ```
 
 `explain` also takes the error as an argument or from a pipe:
 
 ```bash
-git-doctor explain "error: src refspec main does not match any"
-git push 2>&1 | git-doctor explain
+fix-your-git explain "error: src refspec main does not match any"
+git push 2>&1 | fix-your-git explain
 ```
 
 It recognises the usual push failures: `Permission denied (publickey)`, removed password
@@ -53,13 +53,13 @@ bad usage.
 
 ```bash
 npm link
-git-doctor
+fix-your-git
 ```
 
 Or, after publishing the package to npm:
 
 ```bash
-npx git-doctor
+npx fix-your-git
 ```
 
 ## What it checks
@@ -94,7 +94,7 @@ Never paste a personal access token into `.git/config`, commit credentials, or s
 
 ## Safety and limitations
 
-- A plain `git-doctor` run is read-only. Only `--fix` changes anything, and only these three
+- A plain `fix-your-git` run is read-only. Only `--fix` changes anything, and only these three
   global settings: `user.name`, `user.email`, and `gh auth setup-git`. It shows each command
   and runs it only when you type `y`. It never touches remotes, branches, or files, and
   refuses to run without an interactive terminal.
@@ -105,4 +105,4 @@ Never paste a personal access token into `.git/config`, commit credentials, or s
 
 ## Before publishing
 
-Choose a unique npm package name if `git-doctor` is already taken. Add tests and a repository URL before publishing.
+Add tests and a repository URL before publishing.

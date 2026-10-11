@@ -9,19 +9,19 @@ const { readPastedText } = require("../src/prompt");
 const { printReport, printExplanation } = require("../src/report");
 const { paint } = require("../src/style");
 
-const USAGE = `git-doctor ${version}
+const USAGE = `fix-your-git ${version}
 Finds out why git push is not working and tells you what to run.
 
 Usage:
-  git-doctor            Check this folder's Git and GitHub setup
-  git-doctor --fix      Check, then offer to fix the simple problems for you
-  git-doctor explain    Paste an error from git and get a plain-English fix
-  git-doctor --help     Show this help
-  git-doctor --version  Show the version
+  fix-your-git            Check this folder's Git and GitHub setup
+  fix-your-git --fix      Check, then offer to fix the simple problems for you
+  fix-your-git explain    Paste an error from git and get a plain-English fix
+  fix-your-git --help     Show this help
+  fix-your-git --version  Show the version
 
 Examples:
-  git-doctor explain "fatal: Authentication failed"
-  git push 2>&1 | git-doctor explain
+  fix-your-git explain "fatal: Authentication failed"
+  git push 2>&1 | fix-your-git explain
 
 Run it from inside your project folder. It only reads your setup unless
 you use --fix, which asks before every change.`;
@@ -54,9 +54,9 @@ function closestOption(input) {
 
 function failUnknown(input) {
   const suggestion = closestOption(input);
-  console.error(`git-doctor: unknown option "${input}".` +
+  console.error(`fix-your-git: unknown option "${input}".` +
     (suggestion ? ` Did you mean ${suggestion}?` : ""));
-  console.error("Run git-doctor --help to see what it can do.");
+  console.error("Run fix-your-git --help to see what it can do.");
   process.exitCode = 2;
 }
 
@@ -65,7 +65,7 @@ async function runExplain(args) {
     ? args.join(" ")
     : await readPastedText("Paste the error from git, then press Enter on an empty line:");
   if (!text.trim()) {
-    console.error('git-doctor: nothing to explain. Try: git-doctor explain "the error message"');
+    console.error('fix-your-git: nothing to explain. Try: fix-your-git explain "the error message"');
     process.exitCode = 2;
     return;
   }
@@ -106,7 +106,7 @@ function runCheck() {
 
 async function runCheckAndFix() {
   if (!process.stdin.isTTY) {
-    console.error("git-doctor: --fix asks questions, so run it directly in a terminal (not piped).");
+    console.error("fix-your-git: --fix asks questions, so run it directly in a terminal (not piped).");
     process.exitCode = 2;
     return;
   }
@@ -120,6 +120,6 @@ async function runCheckAndFix() {
 }
 
 main(process.argv.slice(2)).catch(error => {
-  console.error(`git-doctor could not complete: ${error.message}`);
+  console.error(`fix-your-git could not complete: ${error.message}`);
   process.exitCode = 1;
 });

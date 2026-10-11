@@ -25,7 +25,7 @@ function printFix({ hint, commands }) {
 }
 
 function printStep(check, number) {
-  const label = check.autoFix ? paint("dim", " (git-doctor --fix can do this)") : "";
+  const label = check.autoFix ? paint("dim", " (fix-your-git --fix can do this)") : "";
   console.log(`  ${paint("bold", `${number}. ${check.title}`)}${label}`);
   printFix(check);
   if (check.alternative) printFix(check.alternative);
@@ -36,8 +36,8 @@ function printNextSteps(problems) {
   console.log(paint("bold", "\nWhat to do next"));
   console.log(paint("dim", "Work through these in order. Many later steps depend on earlier ones.\n"));
   problems.forEach((check, index) => printStep(check, index + 1));
-  console.log("Run git-doctor again after each step to see what is left.");
-  console.log(`Got an error from git push? Run ${paint("cyan", "git-doctor explain")} and paste it.`);
+  console.log("Run fix-your-git again after each step to see what is left.");
+  console.log(`Got an error from git push? Run ${paint("cyan", "fix-your-git explain")} and paste it.`);
 }
 
 function printSummary(checks) {
@@ -49,7 +49,7 @@ function printSummary(checks) {
 }
 
 function printReport(report) {
-  console.log(`\n${paint("bold", "git-doctor")} ${paint("dim", `checking ${report.cwd}`)}\n`);
+  console.log(`\n${paint("bold", "fix-your-git")} ${paint("dim", `checking ${report.cwd}`)}\n`);
   printChecks(report.checks);
 
   const problems = report.checks.filter(c => c.status !== "ok");
@@ -63,9 +63,9 @@ function printReport(report) {
 
 function printExplanation(result, firstErrorLine) {
   if (!result) {
-    console.log(`\n${paint("yellow", "!")} git-doctor does not recognise this error yet.`);
+    console.log(`\n${paint("yellow", "!")} fix-your-git does not recognise this error yet.`);
     if (firstErrorLine) console.log(`  Search the web for this line: ${paint("cyan", firstErrorLine.trim())}`);
-    console.log("  For a full check of your setup, run git-doctor inside your project folder.");
+    console.log("  For a full check of your setup, run fix-your-git inside your project folder.");
     return;
   }
   console.log(`\n${paint("bold", result.title)}`);
