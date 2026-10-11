@@ -24,6 +24,6 @@
   ],
   "scripts": {
     "start": "node ./bin/git-doctor.js",
-    "check": "node --check ./bin/git-doctor.js && node --check ./src/diagnose.js && node --check ./src/run.js"
+    "check": "node --check ./bin/git-doctor.js && node --check ./src/diagnose.js && node --check ./src/run.js && node --check ./src/report.js && node --check ./src/style.js"
   }
 }

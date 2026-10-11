@@ -1,0 +1,57 @@
+"use strict";
+
+const { paint } = require("./style");
+
+const SYMBOLS = { ok: "✓", warn: "!", error: "✗" };
+const COLORS = { ok: "green", warn: "yellow", error: "red" };
+
+function printChecks(checks) {
+  for (const check of checks) {
+    const symbol = paint(COLORS[check.status], SYMBOLS[check.status]);
+    console.log(`  ${symbol} ${check.title}`);
+    const message = check.status === "ok" ? paint("dim", check.message) : check.message;
+    console.log(`    ${message}`);
+  }
+}
+
+function printStep(check, number) {
+  console.log(`  ${paint("bold", `${number}. ${check.title}`)}`);
+  if (check.hint) console.log(`     ${check.hint}`);
+  if (check.commands && check.commands.length > 0) {
+    console.log(paint("dim", "     Run:"));
+    for (const command of check.commands) {
+      console.log(`       ${paint("cyan", command)}`);
+    }
+  }
+  console.log("");
+}
+
+function printNextSteps(problems) {
+  console.log(paint("bold", "\nWhat to do next"));
+  console.log(paint("dim", "Work through these in order. Many later steps depend on earlier ones.\n"));
+  problems.forEach((check, index) => printStep(check, index + 1));
+  console.log("Run git-doctor again after each step to see what is left.");
+}
+
+function printSummary(checks) {
+  const count = status => checks.filter(c => c.status === status).length;
+  console.log(paint("dim",
+    `\n${count("ok")} passed, ${count("warn")} warning(s), ${count("error")} error(s). ` +
+    "No repository settings or files were changed."));
+  console.log(paint("dim", "Local checks cannot guarantee that GitHub will accept a push."));
+}
+
+function printReport(report) {
+  console.log(`\n${paint("bold", "git-doctor")} ${paint("dim", `checking ${report.cwd}`)}\n`);
+  printChecks(report.checks);
+
+  const problems = report.checks.filter(c => c.status !== "ok");
+  if (problems.length > 0) {
+    printNextSteps(problems);
+  } else {
+    console.log(paint("green", "\nEverything looks ready. You should be able to run git push."));
+  }
+  printSummary(report.checks);
+}
+
+module.exports = { printReport };

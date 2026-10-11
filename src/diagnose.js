@@ -23,7 +23,7 @@ function checkGit(cwd, add) {
   if (!gitVersion.ok) {
     add("error", "Git is available",
       "Git was not found or could not be started.",
-      "Install Git from https://git-scm.com/downloads, then reopen your terminal.");
+      { hint: "Install Git from https://git-scm.com/downloads, then close and reopen your terminal so it can find git." });
     return false;
   }
   add("ok", "Git is available", gitVersion.stdout);
@@ -35,7 +35,10 @@ function checkRepository(cwd, add) {
   if (!repo.ok || repo.stdout !== "true") {
     add("error", "Current folder belongs to a Git repository",
       "This folder is not inside a Git working tree.",
-      "Use cd to enter your project folder. If this is a new project, run git init here.");
+      {
+        hint: "If this is the wrong folder, cd into your project first. If this is a new project, start a repository here.",
+        commands: ["git init -b main"]
+      });
     return false;
   }
   const rootResult = run("git", ["rev-parse", "--show-toplevel"], cwd);
@@ -49,7 +52,10 @@ function checkBranch(cwd, add) {
   if (!branch) {
     add("warn", "Current branch",
       "Git did not report a branch name; you may be in a detached HEAD state.",
-      "Run git status and switch to or create the branch you intend to push.");
+      {
+        hint: "List your branches, then switch to the one you meant to work on (replace YOUR_BRANCH).",
+        commands: ["git branch", "git switch YOUR_BRANCH"]
+      });
   } else {
     add("ok", "Current branch", branch);
   }
@@ -62,14 +68,20 @@ function checkAuthor(cwd, add) {
   if (!name.ok || !name.stdout) {
     add("warn", "Commit author name",
       "Git user.name is not configured.",
-      'Run git config --global user.name "Your Name".');
+      {
+        hint: "Git puts this name on every commit. Replace Your Name with your own.",
+        commands: ['git config --global user.name "Your Name"']
+      });
   } else {
     add("ok", "Commit author name", "Configured.");
   }
   if (!email.ok || !email.stdout) {
     add("warn", "Commit author email",
       "Git user.email is not configured.",
-      'Run git config --global user.email "you@example.com".');
+      {
+        hint: "Use the email of your GitHub account so commits link to your profile.",
+        commands: ['git config --global user.email "you@example.com"']
+      });
   } else {
     add("ok", "Commit author email", "Configured.");
   }
@@ -87,7 +99,10 @@ function checkRemote(cwd, add, branch) {
   if (remotes.length === 0) {
     add("error", "Remote repository",
       "No Git remote is configured, so Git does not know where to push.",
-      "Create a repository on GitHub, then run git remote add origin https://github.com/USERNAME/REPOSITORY.git (replace the placeholder URL).");
+      {
+        hint: "Create an empty repository at https://github.com/new (leave README unticked), then connect it. Replace YOUR_USERNAME and REPOSITORY.",
+        commands: ["git remote add origin https://github.com/YOUR_USERNAME/REPOSITORY.git"]
+      });
     return;
   }
 
@@ -97,7 +112,10 @@ function checkRemote(cwd, add, branch) {
   add(isGitHub ? "ok" : "warn", "Remote repository",
     `${remote} is configured${isGitHub ? " for GitHub" : ", but its URL does not look like a GitHub URL"}.` +
     (remoteUrl ? ` URL: ${safeRemoteUrl(remoteUrl)}` : ""),
-    isGitHub ? "" : "Check the remote URL with git remote -v. To correct it, use git remote set-url origin YOUR_REPOSITORY_URL.");
+    isGitHub ? {} : {
+      hint: "Check the URL. If it is wrong, replace it with your GitHub repository URL.",
+      commands: ["git remote -v", `git remote set-url ${remote} https://github.com/YOUR_USERNAME/REPOSITORY.git`]
+    });
 
   checkUpstream(cwd, add, branch, remotes);
 }
@@ -109,11 +127,17 @@ function checkUpstream(cwd, add, branch, remotes) {
   } else if (branch && remotes.includes("origin")) {
     add("warn", "Branch tracking",
       `Branch "${branch}" does not appear to track a remote branch.`,
-      `After confirming the branch and remote are correct, run git push -u origin ${branch}.`);
+      {
+        hint: "Push once with -u so Git remembers where this branch goes. After that, plain git push works.",
+        commands: [`git push -u origin ${branch}`]
+      });
   } else {
     add("warn", "Branch tracking",
       "An upstream branch could not be detected.",
-      "Check the branch and remote, then set the upstream with git push -u REMOTE BRANCH.");
+      {
+        hint: "Push once with -u to set it. Replace REMOTE and BRANCH.",
+        commands: ["git push -u REMOTE BRANCH"]
+      });
   }
 }
 
@@ -121,7 +145,10 @@ function checkGitHubCli(cwd, add) {
   if (!commandExists("gh", cwd)) {
     add("warn", "GitHub CLI",
       "The GitHub CLI (gh) was not found. Authentication status was not checked.",
-      "Install it from https://cli.github.com/, then run gh auth login.");
+      {
+        hint: "It is the easiest way to sign Git in to GitHub. Install it from https://cli.github.com/, then reopen your terminal and sign in.",
+        commands: ["gh auth login"]
+      });
     return;
   }
   const auth = run("gh", ["auth", "status", "--hostname", "github.com"], cwd);
@@ -130,18 +157,24 @@ function checkGitHubCli(cwd, add) {
       "gh reports an authenticated GitHub account. This does not guarantee the remote's authentication method or repository permissions are correct.");
     add("warn", "Git credential setup",
       "If pushing over HTTPS still reports an authentication error, Git may not be using the GitHub CLI as its credential helper.",
-      "Run gh auth setup-git, then retry git push. For SSH remotes, check your SSH key setup instead.");
+      {
+        hint: "Let Git use your gh login for HTTPS pushes.",
+        commands: ["gh auth setup-git"]
+      });
   } else {
     add("warn", "GitHub CLI authentication",
       "GitHub CLI authentication could not be verified. The diagnostic intentionally does not display authentication command output.",
-      "Run gh auth login and follow the prompts. Then run gh auth setup-git if you use an HTTPS remote.");
+      {
+        hint: "Sign in and follow the prompts (choose GitHub.com, then HTTPS, then login with a web browser).",
+        commands: ["gh auth login"]
+      });
   }
 }
 
 function diagnose(cwd = process.cwd()) {
   const checks = [];
-  const add = (status, title, message, fix = "") =>
-    checks.push({ status, title, message, ...(fix ? { fix } : {}) });
+  const add = (status, title, message, fix = {}) =>
+    checks.push({ status, title, message, ...fix });
 
   if (!checkGit(cwd, add)) return { cwd, checks };
   if (!checkRepository(cwd, add)) return { cwd, checks };
