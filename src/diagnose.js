@@ -267,19 +267,12 @@ function checkUpstream(cwd, add, { branch, hasCommits }, { name: remote }) {
   const upstream = run("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd);
   if (upstream.ok) {
     add("ok", "Branch tracking", `Tracks ${upstream.stdout}.`);
-  } else if (branch) {
+  } else {
     add("warn", "Branch tracking",
       `Branch "${branch}" does not appear to track a remote branch.`,
       {
         hint: "Push once with -u so Git remembers where this branch goes. After that, plain git push works.",
         commands: [`git push -u ${remote} ${branch}`]
-      });
-  } else {
-    add("warn", "Branch tracking",
-      "An upstream branch could not be detected.",
-      {
-        hint: "Push once with -u to set it. Replace BRANCH with your branch name.",
-        commands: [`git push -u ${remote} BRANCH`]
       });
   }
 }
@@ -426,7 +419,7 @@ function diagnose(cwd = process.cwd()) {
   checkGitHubCli(add, github);
   if (!remote || remote.kind === "https") checkCredentialHelper(cwd, add, github.authenticated);
   else if (remote.kind === "ssh") checkSshKey(add, remote, github);
-  if (remote) checkUpstream(cwd, add, branchState, remote);
+  if (remote && branchState.branch) checkUpstream(cwd, add, branchState, remote);
 
   return { cwd, checks };
 }
