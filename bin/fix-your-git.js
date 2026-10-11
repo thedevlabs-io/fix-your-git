@@ -63,7 +63,7 @@ function failUnknown(input) {
 async function runExplain(args) {
   const text = args.length > 0
     ? args.join(" ")
-    : await readPastedText("Paste the error from git, then press Enter on an empty line (or Ctrl+D):");
+    : await readPastedText("Paste the error from git, then press Enter until it answers (or press Ctrl+D):");
   if (!text.trim()) {
     console.error('fix-your-git: nothing to explain. Try: fix-your-git explain "the error message"');
     process.exitCode = 2;

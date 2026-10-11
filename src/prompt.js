@@ -2,7 +2,7 @@
 
 const readline = require("node:readline");
 
-const PASTE_QUIET_MS = 100;
+const LATE_INPUT_MS = 300;
 const STALE_INPUT_MS = 100;
 
 function createPrompter() {
@@ -55,23 +55,17 @@ function readAll(stream) {
 }
 
 // Terminal mode keeps unfinished lines inside readline, so nothing pasted is
-// left in the tty buffer for the shell to run after we exit. A blank line
-// ends input only when typed after the paste went quiet, because git errors
-// contain blank lines of their own.
+// left in the tty buffer for the shell. Input ends on Ctrl+D or two empty
+// lines in a row (git output never has two), not on timing, because pastes
+// over ssh arrive in delayed chunks.
 function readPastedLines() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
   const lines = [];
-  let lastLineAt = 0;
   return new Promise(resolve => {
     rl.on("line", line => {
-      const now = Date.now();
-      const quiet = now - lastLineAt > PASTE_QUIET_MS;
-      lastLineAt = now;
-      if (line.trim() === "" && quiet && lines.some(entry => entry.trim())) {
-        rl.close();
-        return;
-      }
       lines.push(line);
+      const [secondLast, last] = lines.slice(-2);
+      if (lines.length >= 2 && !secondLast.trim() && !last.trim() && lines.some(entry => entry.trim())) rl.close();
     });
     const finishOnCtrlD = (_, key) => {
       if (!key || !key.ctrl || key.name !== "d") return;
@@ -85,8 +79,24 @@ function readPastedLines() {
     });
     rl.on("close", () => {
       process.stdin.off("keypress", finishOnCtrlD);
-      resolve(lines.join("\n"));
+      discardLateInput().then(() => resolve(lines.join("\n")));
     });
+  });
+}
+
+// Swallow paste chunks still in flight so they never reach the shell.
+function discardLateInput() {
+  return new Promise(resolve => {
+    const discard = () => {};
+    process.stdin.setRawMode(true);
+    process.stdin.on("data", discard);
+    process.stdin.resume();
+    setTimeout(() => {
+      process.stdin.off("data", discard);
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+      resolve();
+    }, LATE_INPUT_MS);
   });
 }
 
