@@ -106,23 +106,36 @@ function reportNoBranch(cwd, add) {
 
 const KEEP_OUT_OF_GIT = [".env", ".env.local", "node_modules", ".venv", "venv", "__pycache__"];
 
-function unignoredRiskyFiles(root) {
-  return KEEP_OUT_OF_GIT
-    .filter(name => fs.existsSync(path.join(root, name)))
-    .filter(name => !run("git", ["check-ignore", "--quiet", name], root).ok)
-    .map(name => (fs.statSync(path.join(root, name)).isDirectory() ? `${name}/` : name));
+function ignoreLine(root, name) {
+  return fs.statSync(path.join(root, name)).isDirectory() ? `${name}/` : name;
+}
+
+// --no-index checks the .gitignore rules alone; without it, a file that is
+// already staged reports as not ignored even after the rule is added.
+function riskyFileState(root) {
+  const present = KEEP_OUT_OF_GIT.filter(name => fs.existsSync(path.join(root, name)));
+  return {
+    unignored: present.filter(name => !run("git", ["check-ignore", "--quiet", "--no-index", name], root).ok),
+    staged: present.filter(name => run("git", ["ls-files", "--cached", "--", name], root).stdout !== "")
+  };
 }
 
 function checkIgnoreFile(root, add) {
-  const risky = unignoredRiskyFiles(root);
-  if (risky.length === 0) return;
+  const { unignored, staged } = riskyFileState(root);
+  if (unignored.length === 0 && staged.length === 0) return;
+  const names = [...new Set([...unignored, ...staged])].map(name => ignoreLine(root, name));
+  const unstage = {
+    hint: "These are already staged. Unstage them (the files stay on your disk).",
+    commands: staged.map(name => `git rm -r --cached ${name}`)
+  };
+  const addRules = {
+    hint: "Open .gitignore in your project folder in your editor (create it if it does not exist).",
+    commandsLabel: "Add these lines:",
+    commands: unignored.map(name => ignoreLine(root, name))
+  };
   add("warn", "Files to keep out of Git",
-    `${risky.join(", ")} would be included in your first commit. Secrets in .env become public once pushed, and dependency folders are huge.`,
-    {
-      hint: "Open .gitignore in your project folder in your editor (create it if it does not exist).",
-      commandsLabel: "Add these lines:",
-      commands: risky
-    });
+    `${names.join(", ")} would be included in your first commit. Secrets in .env become public once pushed, and dependency folders are huge.`,
+    unignored.length === 0 ? unstage : { ...addRules, more: staged.length > 0 ? [unstage] : [] });
 }
 
 function checkBranch(cwd, add, root) {
@@ -286,6 +299,9 @@ function readGitHubAccount(cwd) {
   const auth = run("gh", ["auth", "token", "--hostname", "github.com"], cwd);
   if (!auth.ok) return { installed: true, authenticated: false };
   const user = run("gh", ["api", "user", "--jq", '[.login, (.id | tostring), (.name // "")] | join("\\t")'], cwd, GH_API_TIMEOUT_MS);
+  if (!user.ok && /HTTP 401|Bad credentials/i.test(user.stderr)) {
+    return { installed: true, authenticated: false, expired: true };
+  }
   const [login = "", id = "", name = ""] = user.ok ? user.stdout.split("\t") : [];
   return { installed: true, authenticated: true, login, id, name };
 }
@@ -308,7 +324,9 @@ function checkGitHubCli(add, github) {
     return;
   }
   add("warn", "GitHub CLI authentication",
-    "GitHub CLI authentication could not be verified. The diagnostic intentionally does not display authentication command output.",
+    github.expired
+      ? "Your saved gh login has expired or was revoked, so GitHub rejects it."
+      : "GitHub CLI authentication could not be verified. The diagnostic intentionally does not display authentication command output.",
     {
       hint: "Sign in and follow the prompts (choose GitHub.com, then HTTPS, then login with a web browser).",
       commands: ["gh auth login"]
@@ -317,7 +335,8 @@ function checkGitHubCli(add, github) {
 
 function remoteKind(url) {
   if (/^https?:\/\//i.test(url)) return "https";
-  if (/^ssh:\/\//i.test(url) || /^[\w.-]+@[\w.-]+:/.test(url)) return "ssh";
+  // scp-style "host:path"; the dot in the host keeps Windows drives like C: out.
+  if (/^ssh:\/\//i.test(url) || /^([\w.-]+@)?[\w-]+(\.[\w-]+)+:(?!\/\/)/.test(url)) return "ssh";
   return "other";
 }
 
