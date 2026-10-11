@@ -14,10 +14,10 @@ function printChecks(checks) {
   }
 }
 
-function printFix({ hint, commands }) {
+function printFix({ hint, commands, commandsLabel = "Run:" }) {
   if (hint) console.log(`     ${hint}`);
   if (commands && commands.length > 0) {
-    console.log(paint("dim", "     Run:"));
+    console.log(paint("dim", `     ${commandsLabel}`));
     for (const command of commands) {
       console.log(`       ${paint("cyan", command)}`);
     }

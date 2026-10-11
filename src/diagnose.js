@@ -104,7 +104,28 @@ function reportNoBranch(cwd, add) {
     });
 }
 
-function checkBranch(cwd, add) {
+const KEEP_OUT_OF_GIT = [".env", ".env.local", "node_modules", ".venv", "venv", "__pycache__"];
+
+function unignoredRiskyFiles(root) {
+  return KEEP_OUT_OF_GIT
+    .filter(name => fs.existsSync(path.join(root, name)))
+    .filter(name => !run("git", ["check-ignore", "--quiet", name], root).ok)
+    .map(name => (fs.statSync(path.join(root, name)).isDirectory() ? `${name}/` : name));
+}
+
+function checkIgnoreFile(root, add) {
+  const risky = unignoredRiskyFiles(root);
+  if (risky.length === 0) return;
+  add("warn", "Files to keep out of Git",
+    `${risky.join(", ")} would be included in your first commit. Secrets in .env become public once pushed, and dependency folders are huge.`,
+    {
+      hint: "Open .gitignore in your project folder in your editor (create it if it does not exist).",
+      commandsLabel: "Add these lines:",
+      commands: risky
+    });
+}
+
+function checkBranch(cwd, add, root) {
   const branch = run("git", ["branch", "--show-current"], cwd).stdout;
   if (!branch) {
     reportNoBranch(cwd, add);
@@ -114,10 +135,11 @@ function checkBranch(cwd, add) {
 
   const hasCommits = run("git", ["rev-parse", "--verify", "--quiet", "HEAD"], cwd).ok;
   if (!hasCommits) {
+    checkIgnoreFile(root, add);
     add("warn", "First commit",
       `Branch "${branch}" has no commits yet, so there is nothing to push.`,
       {
-        hint: "Check what will be saved first. Add a .gitignore so files like .env and node_modules stay out, then commit.",
+        hint: "git status lists what will be saved. If anything there should stay private or is generated, add it to .gitignore before you commit.",
         commands: ["git status", "git add .", 'git commit -m "First commit"']
       });
   }
@@ -372,7 +394,7 @@ function diagnose(cwd = process.cwd()) {
   const github = readGitHubAccount(cwd);
   checkAuthorName(cwd, add, github);
   checkAuthorEmail(cwd, add, github);
-  const branchState = checkBranch(cwd, add);
+  const branchState = checkBranch(cwd, add, root);
   const remote = checkRemote(cwd, add, github, suggestedRepoName(root));
   checkGitHubCli(add, github);
   if (!remote || isHttpsUrl(remote.url)) checkCredentialHelper(cwd, add, github.authenticated);
