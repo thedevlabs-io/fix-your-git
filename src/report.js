@@ -14,15 +14,20 @@ function printChecks(checks) {
   }
 }
 
-function printStep(check, number) {
-  console.log(`  ${paint("bold", `${number}. ${check.title}`)}`);
-  if (check.hint) console.log(`     ${check.hint}`);
-  if (check.commands && check.commands.length > 0) {
+function printFix({ hint, commands }) {
+  if (hint) console.log(`     ${hint}`);
+  if (commands && commands.length > 0) {
     console.log(paint("dim", "     Run:"));
-    for (const command of check.commands) {
+    for (const command of commands) {
       console.log(`       ${paint("cyan", command)}`);
     }
   }
+}
+
+function printStep(check, number) {
+  console.log(`  ${paint("bold", `${number}. ${check.title}`)}`);
+  printFix(check);
+  if (check.alternative) printFix(check.alternative);
   console.log("");
 }
 

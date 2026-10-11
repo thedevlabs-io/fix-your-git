@@ -271,6 +271,49 @@ function checkCredentialHelper(cwd, add, ghAuthenticated) {
       : { hint: "Sign in with gh first (see the GitHub CLI step), then let Git reuse that login.", commands: ["gh auth setup-git"] });
 }
 
+function findSshPublicKeys() {
+  const sshFolder = path.join(os.homedir(), ".ssh");
+  try {
+    return fs.readdirSync(sshFolder).filter(file => file.endsWith(".pub"));
+  } catch {
+    return [];
+  }
+}
+
+function sshToHttpsUrl(url) {
+  const match = url.match(/^(?:ssh:\/\/)?git@github\.com[:/](.+?)(?:\.git)?\/?$/i);
+  return match ? `https://github.com/${match[1]}.git` : "";
+}
+
+function checkSshKey(add, remote, github) {
+  const keys = findSshPublicKeys();
+  if (keys.length > 0) {
+    add("ok", "SSH key",
+      `Found ${keys.join(", ")} in ~/.ssh. To confirm GitHub accepts it, run ssh -T git@github.com`);
+    return;
+  }
+  const email = noReplyEmail(github) || "you@example.com";
+  const httpsUrl = sshToHttpsUrl(remote.url);
+  const keySteps = "create a key (press Enter to accept the defaults), then add the .pub file to GitHub" +
+    (github.authenticated ? "." : " at https://github.com/settings/keys.");
+  const sshSetup = {
+    hint: `To fix this, ${keySteps}`,
+    commands: [
+      `ssh-keygen -t ed25519 -C "${email}"`,
+      ...(github.authenticated ? ['gh ssh-key add ~/.ssh/id_ed25519.pub --title "My computer"'] : [])
+    ]
+  };
+  add("warn", "SSH key",
+    `${remote.name} uses SSH, but no SSH key was found in ~/.ssh, so GitHub will reply "Permission denied (publickey)".`,
+    httpsUrl
+      ? {
+        hint: "Simplest fix: switch this remote to HTTPS and skip SSH keys entirely.",
+        commands: [`git remote set-url ${remote.name} ${httpsUrl}`],
+        alternative: { ...sshSetup, hint: `Or, to keep SSH, ${keySteps}` }
+      }
+      : sshSetup);
+}
+
 function diagnose(cwd = process.cwd()) {
   const checks = [];
   const add = (status, title, message, fix = {}) =>
@@ -286,6 +329,7 @@ function diagnose(cwd = process.cwd()) {
   const remote = checkRemote(cwd, add, github, suggestedRepoName(root));
   checkGitHubCli(add, github);
   if (!remote || isHttpsUrl(remote.url)) checkCredentialHelper(cwd, add, github.authenticated);
+  else checkSshKey(add, remote, github);
   if (remote) checkUpstream(cwd, add, branchState, remote);
 
   return { cwd, checks };
