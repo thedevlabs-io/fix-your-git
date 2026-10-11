@@ -28,6 +28,6 @@ jobs:
         run: |
           node bin/fix-your-git.js --version
           node bin/fix-your-git.js --help
-          node bin/fix-your-git.js explain "fatal: Authentication failed"
+          node bin/fix-your-git.js explain "fatal: Authentication failed" | grep -q "GitHub rejected your password"
       - name: Check the published file list
         run: npm pack --dry-run
