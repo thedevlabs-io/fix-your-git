@@ -1,5 +1,5 @@
 {
-  "name": "fix-your-git",
+  "name": "@thedevlabs-io/fix-your-git",
   "version": "0.1.0",
   "description": "Beginner-friendly diagnostics for Git and GitHub push problems",
   "type": "commonjs",
@@ -18,6 +18,14 @@
   ],
   "author": "thedevlabs-io <contact@thedevlabs.io>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thedevlabs-io/fix-your-git.git"
+  },
+  "homepage": "https://github.com/thedevlabs-io/fix-your-git#readme",
+  "bugs": {
+    "url": "https://github.com/thedevlabs-io/fix-your-git/issues"
+  },
   "files": [
     "bin/",
     "src/",
@@ -26,5 +34,8 @@
   "scripts": {
     "start": "node ./bin/fix-your-git.js",
     "check": "node --check ./bin/fix-your-git.js && node --check ./src/diagnose.js && node --check ./src/run.js && node --check ./src/report.js && node --check ./src/style.js && node --check ./src/explain.js && node --check ./src/prompt.js && node --check ./src/fix.js"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

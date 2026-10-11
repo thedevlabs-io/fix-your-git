@@ -2,6 +2,21 @@
 
 A beginner-friendly, cross-platform CLI that diagnoses common Git/GitHub push setup problems.
 
+## Quick start
+
+Run it from inside your project folder, no install needed:
+
+```bash
+npx @thedevlabs-io/fix-your-git
+```
+
+Or install it once and use the short command:
+
+```bash
+npm install -g @thedevlabs-io/fix-your-git
+fix-your-git
+```
+
 ## Requirements
 
 - Node.js 18+
@@ -57,12 +72,6 @@ npm link
 fix-your-git
 ```
 
-Or, after publishing the package to npm:
-
-```bash
-npx fix-your-git
-```
-
 ## What it checks
 
 - Git availability
@@ -104,6 +113,22 @@ Never paste a personal access token into `.git/config`, commit credentials, or s
 - A successful `gh auth status` does not guarantee that Git itself is using the same credentials, particularly with SSH remotes.
 - Review every suggested command before running it. Replace placeholder values such as `USERNAME` and `REPOSITORY`.
 
-## Before publishing
+## Releasing
 
-Add tests and a repository URL before publishing.
+Bump `version` in `package.json` through a normal pull request. Once it is merged, tag that
+commit on `main` and push the tag:
+
+```bash
+git checkout main && git pull
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+The Release workflow checks that the tag matches `package.json` and publishes to npm through
+trusted publishing, so no npm token is stored in GitHub. It also refuses a tag that points at
+a commit not on `main`.
+
+Trusted publishing can only be configured once the package exists on npm. The first version
+is published by hand with `npm publish`. After that, add a trusted publisher in the package's
+settings on npmjs.com: GitHub Actions, repository `thedevlabs-io/fix-your-git`, workflow
+`release.yml`, environment `npm`.

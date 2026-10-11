@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm run check
+      - name: Smoke test the CLI
+        shell: bash
+        run: |
+          node bin/fix-your-git.js --version
+          node bin/fix-your-git.js --help
+          node bin/fix-your-git.js explain "fatal: Authentication failed"
+      - name: Check the published file list
+        run: npm pack --dry-run
