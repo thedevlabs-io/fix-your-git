@@ -63,7 +63,7 @@ function failUnknown(input) {
 async function runExplain(args) {
   const text = args.length > 0
     ? args.join(" ")
-    : await readPastedText("Paste the error from git, then press Enter on an empty line:");
+    : await readPastedText("Paste the error from git and press Enter:");
   if (!text.trim()) {
     console.error('fix-your-git: nothing to explain. Try: fix-your-git explain "the error message"');
     process.exitCode = 2;
@@ -111,7 +111,12 @@ async function runCheckAndFix() {
     return;
   }
   const report = runCheck();
-  const fixed = await runFixes(report, process.cwd());
+  const { fixed, cancelled } = await runFixes(report, process.cwd());
+  if (cancelled) {
+    console.log(`\n\nCancelled. ${fixed} change(s) made; nothing else was changed.`);
+    process.exitCode = 130;
+    return;
+  }
   if (fixed > 0) {
     console.log(paint("bold", "\nChecking again..."));
     process.exitCode = 0;

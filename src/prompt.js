@@ -2,14 +2,38 @@
 
 const readline = require("node:readline");
 
-function ask(question) {
+const PASTE_IDLE_MS = 400;
+
+function createPrompter() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise(resolve => {
-    rl.question(question, answer => {
-      rl.close();
-      resolve(answer.trim());
-    });
+  const typedAhead = [];
+  let pending = null;
+  let closed = false;
+
+  const settle = value => {
+    const resolve = pending;
+    pending = null;
+    if (resolve) resolve(value);
+  };
+  rl.on("line", line => (pending ? settle(line.trim()) : typedAhead.push(line.trim())));
+  rl.on("SIGINT", () => rl.close());
+  rl.on("close", () => {
+    closed = true;
+    settle(null);
   });
+
+  return {
+    ask(question) {
+      if (closed) return Promise.resolve(null);
+      rl.setPrompt(question);
+      rl.prompt();
+      if (typedAhead.length > 0) return Promise.resolve(typedAhead.shift());
+      return new Promise(resolve => { pending = resolve; });
+    },
+    close() {
+      rl.close();
+    }
+  };
 }
 
 function readAll(stream) {
@@ -22,25 +46,29 @@ function readAll(stream) {
   });
 }
 
-function readUntilBlankLine() {
+function readPastedBurst() {
   const rl = readline.createInterface({ input: process.stdin });
   const lines = [];
+  let idleTimer = null;
   return new Promise(resolve => {
     rl.on("line", line => {
-      if (line.trim() === "" && lines.length > 0) {
-        rl.close();
-        return;
-      }
-      if (line.trim() !== "") lines.push(line);
+      lines.push(line);
+      if (!lines.some(entry => entry.trim())) return;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => rl.close(), PASTE_IDLE_MS);
     });
-    rl.on("close", () => resolve(lines.join("\n")));
+    rl.on("SIGINT", () => rl.close());
+    rl.on("close", () => {
+      clearTimeout(idleTimer);
+      resolve(lines.join("\n"));
+    });
   });
 }
 
 function readPastedText(promptText) {
   if (!process.stdin.isTTY) return readAll(process.stdin);
   console.log(promptText);
-  return readUntilBlankLine();
+  return readPastedBurst();
 }
 
-module.exports = { ask, readPastedText };
+module.exports = { createPrompter, readPastedText };
