@@ -70,15 +70,44 @@ function checkRepository(cwd, add) {
   return root || cwd;
 }
 
+function operationInProgress(cwd) {
+  const gitDir = run("git", ["rev-parse", "--git-dir"], cwd).stdout;
+  const exists = name => fs.existsSync(path.resolve(cwd, gitDir, name));
+  if (exists("rebase-merge") || exists("rebase-apply")) return "rebase";
+  if (exists("BISECT_LOG")) return "bisect";
+  return "";
+}
+
+function reportNoBranch(cwd, add) {
+  const operation = operationInProgress(cwd);
+  if (operation === "rebase") {
+    add("warn", "Current branch",
+      "A rebase is in progress, so you are temporarily not on a branch.",
+      {
+        hint: "Finish it: fix any conflicts git status lists, git add those files, then continue.",
+        commands: ["git status", "git rebase --continue"],
+        alternative: { hint: "Or cancel the rebase and go back to how things were.", commands: ["git rebase --abort"] }
+      });
+    return;
+  }
+  if (operation === "bisect") {
+    add("warn", "Current branch",
+      "A git bisect is in progress, so you are temporarily not on a branch.",
+      { hint: "End the bisect to return to your branch.", commands: ["git bisect reset"] });
+    return;
+  }
+  add("warn", "Current branch",
+    "You are on a detached HEAD: commits made now do not belong to any branch and are easy to lose.",
+    {
+      hint: "Save where you are as a new branch first, so nothing gets lost. Replace my-work with any name, then push that branch.",
+      commands: ["git switch -c my-work"]
+    });
+}
+
 function checkBranch(cwd, add) {
   const branch = run("git", ["branch", "--show-current"], cwd).stdout;
   if (!branch) {
-    add("warn", "Current branch",
-      "Git did not report a branch name; you may be in a detached HEAD state.",
-      {
-        hint: "List your branches, then switch to the one you meant to work on (replace YOUR_BRANCH).",
-        commands: ["git branch", "git switch YOUR_BRANCH"]
-      });
+    reportNoBranch(cwd, add);
     return { branch, hasCommits: true };
   }
   add("ok", "Current branch", branch);
