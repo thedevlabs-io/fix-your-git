@@ -1,0 +1,29 @@
+{
+  "name": "git-doctor",
+  "version": "0.1.0",
+  "description": "Beginner-friendly diagnostics for Git and GitHub push problems",
+  "type": "commonjs",
+  "bin": {
+    "git-doctor": "./bin/git-doctor.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "git",
+    "github",
+    "cli",
+    "developer-tools",
+    "beginner"
+  ],
+  "license": "MIT",
+  "files": [
+    "bin/",
+    "src/",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node ./bin/git-doctor.js",
+    "check": "node --check ./bin/git-doctor.js && node --check ./src/diagnose.js"
+  }
+}
