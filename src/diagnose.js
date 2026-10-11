@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const os = require("node:os");
 const { run, commandExists } = require("./run");
 
 function safeRemoteUrl(value) {
@@ -30,8 +32,21 @@ function checkGit(cwd, add) {
   return true;
 }
 
+function isHomeFolder(folder) {
+  return fs.realpathSync(folder) === fs.realpathSync(os.homedir());
+}
+
 function checkRepository(cwd, add) {
   const repo = run("git", ["rev-parse", "--is-inside-work-tree"], cwd);
+  if ((!repo.ok || repo.stdout !== "true") && isHomeFolder(cwd)) {
+    add("error", "Current folder belongs to a Git repository",
+      "You are in your home folder, not a project folder.",
+      {
+        hint: "Do not run git init here: it would track every file you own. Move into your project folder and run git-doctor again (replace the path).",
+        commands: ["cd path/to/your-project"]
+      });
+    return false;
+  }
   if (!repo.ok || repo.stdout !== "true") {
     add("error", "Current folder belongs to a Git repository",
       "This folder is not inside a Git working tree.",
@@ -41,9 +56,16 @@ function checkRepository(cwd, add) {
       });
     return false;
   }
-  const rootResult = run("git", ["rev-parse", "--show-toplevel"], cwd);
-  add("ok", "Git repository detected",
-    `Repository root: ${rootResult.stdout || "(could not determine root)"}`);
+  const root = run("git", ["rev-parse", "--show-toplevel"], cwd).stdout;
+  if (root && isHomeFolder(root)) {
+    add("warn", "Git repository detected",
+      `Your whole home folder (${root}) is a Git repository, usually from running git init in the wrong place.`,
+      {
+        hint: "If you did not mean to do that, delete the hidden .git folder in your home folder (your files stay), then run git init -b main inside your project folder. If you track dotfiles there on purpose, ignore this."
+      });
+    return true;
+  }
+  add("ok", "Git repository detected", `Repository root: ${root || "(could not determine root)"}`);
   return true;
 }
 
@@ -56,10 +78,20 @@ function checkBranch(cwd, add) {
         hint: "List your branches, then switch to the one you meant to work on (replace YOUR_BRANCH).",
         commands: ["git branch", "git switch YOUR_BRANCH"]
       });
-  } else {
-    add("ok", "Current branch", branch);
+    return { branch, hasCommits: true };
   }
-  return branch;
+  add("ok", "Current branch", branch);
+
+  const hasCommits = run("git", ["rev-parse", "--verify", "--quiet", "HEAD"], cwd).ok;
+  if (!hasCommits) {
+    add("warn", "First commit",
+      `Branch "${branch}" has no commits yet, so there is nothing to push.`,
+      {
+        hint: "Check what will be saved first. Add a .gitignore so files like .env and node_modules stay out, then commit.",
+        commands: ["git status", "git add .", 'git commit -m "First commit"']
+      });
+  }
+  return { branch, hasCommits };
 }
 
 function checkAuthor(cwd, add) {
@@ -120,7 +152,16 @@ function checkRemote(cwd, add) {
   return { name: remote, url: remoteUrl, remotes };
 }
 
-function checkUpstream(cwd, add, branch, { remotes }) {
+function checkUpstream(cwd, add, { branch, hasCommits }, { remotes }) {
+  if (!hasCommits) {
+    add("warn", "Branch tracking",
+      "Nothing to push until you make your first commit.",
+      {
+        hint: "After committing, push once with -u so Git remembers where this branch goes.",
+        commands: [`git push -u origin ${branch}`]
+      });
+    return;
+  }
   const upstream = run("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd);
   if (upstream.ok) {
     add("ok", "Branch tracking", `Tracks ${upstream.stdout}.`);
@@ -194,12 +235,12 @@ function diagnose(cwd = process.cwd()) {
 
   if (!checkGit(cwd, add)) return { cwd, checks };
   if (!checkRepository(cwd, add)) return { cwd, checks };
-  const branch = checkBranch(cwd, add);
   checkAuthor(cwd, add);
+  const branchState = checkBranch(cwd, add);
   const remote = checkRemote(cwd, add);
   const ghAuthenticated = checkGitHubCli(cwd, add);
   if (!remote || isHttpsUrl(remote.url)) checkCredentialHelper(cwd, add, ghAuthenticated);
-  if (remote) checkUpstream(cwd, add, branch, remote);
+  if (remote) checkUpstream(cwd, add, branchState, remote);
 
   return { cwd, checks };
 }
