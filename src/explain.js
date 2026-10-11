@@ -1,6 +1,9 @@
 "use strict";
 
-const DEPENDENCY_FOLDERS = ["node_modules", "vendor", "dist", "build", ".venv", "venv"];
+// Install folders are never source at any depth; build output names are only
+// safe to treat that way at the root, where src/build could be real code.
+const INSTALL_FOLDERS = ["node_modules", ".venv", "venv"];
+const ROOT_OUTPUT_FOLDERS = ["dist", "build", "vendor"];
 
 function quoteIfNeeded(value) {
   return /\s/.test(value) ? `"${value}"` : value;
@@ -15,15 +18,19 @@ function rejectedFile(text) {
 
 function dependencyFolderOf(file) {
   const segments = file.split("/");
-  const index = segments.findIndex(segment => DEPENDENCY_FOLDERS.includes(segment));
-  return index === -1 ? null : { name: segments[index], path: segments.slice(0, index + 1).join("/") };
+  const index = segments.findIndex(segment => INSTALL_FOLDERS.includes(segment));
+  if (index !== -1) return { path: segments.slice(0, index + 1).join("/"), ignoreLine: `${segments[index]}/` };
+  if (segments.length > 1 && ROOT_OUTPUT_FOLDERS.includes(segments[0])) {
+    return { path: segments[0], ignoreLine: `/${segments[0]}/` };
+  }
+  return null;
 }
 
 function explainLargeFile(text) {
   const file = rejectedFile(text);
   const dependency = dependencyFolderOf(file);
   const folder = dependency && dependency.path;
-  const ignoreLine = dependency ? `${dependency.name}/` : file;
+  const ignoreLine = dependency ? dependency.ignoreLine : file;
   return {
     title: "A file is too big for GitHub",
     cause: `${file} is over GitHub's 100 MB limit, so the whole push was refused.` +
