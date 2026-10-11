@@ -6,16 +6,30 @@ function quoteIfNeeded(value) {
   return /\s/.test(value) ? `"${value}"` : value;
 }
 
+// GitHub also prints "warning: File X is 62 MB" for files it accepts, so
+// prefer the file named on an error line.
+function rejectedFile(text) {
+  const match = text.match(/error: File (.+?) is [\d.]+ ?MB/i) || text.match(/File (.+?) is [\d.]+ ?MB/i);
+  return match ? match[1] : "BIG_FILE";
+}
+
+function dependencyFolderOf(file) {
+  const segments = file.split("/");
+  const index = segments.findIndex(segment => DEPENDENCY_FOLDERS.includes(segment));
+  return index === -1 ? null : { name: segments[index], path: segments.slice(0, index + 1).join("/") };
+}
+
 function explainLargeFile(text) {
-  const file = (text.match(/File (.+?) is [\d.]+ ?MB/i) || [])[1] || "BIG_FILE";
-  const folder = DEPENDENCY_FOLDERS.find(name => file.startsWith(`${name}/`));
-  const ignoreLine = folder ? `${folder}/` : file;
+  const file = rejectedFile(text);
+  const dependency = dependencyFolderOf(file);
+  const folder = dependency && dependency.path;
+  const ignoreLine = dependency ? `${dependency.name}/` : file;
   return {
     title: "A file is too big for GitHub",
     cause: `${file} is over GitHub's 100 MB limit, so the whole push was refused.` +
       (folder ? ` It is inside ${folder}/, which should never be committed.` : ""),
     hint: "If it was added in your latest commit only, take it out of Git first (it stays on your disk). If it is in older commits too, ask someone for help before rewriting history.",
-    commands: [folder ? `git rm -r --cached ${folder}` : `git rm --cached ${quoteIfNeeded(file)}`],
+    commands: [folder ? `git rm -r --cached ${quoteIfNeeded(folder)}` : `git rm --cached ${quoteIfNeeded(file)}`],
     more: [
       { hint: "Open .gitignore in your editor (create it if needed) so it is not added again.", commandsLabel: "Add this line:", commands: [ignoreLine] },
       { hint: "Then update the commit and push.", commands: ["git add .gitignore", "git commit --amend --no-edit", "git push"] }
@@ -122,7 +136,7 @@ const KNOWN_ERRORS = [
   {
     pattern: /\[rejected\]\s+(\S+) -> \S+ \(already exists\)|tag already exists in the remote/i,
     explain: ([, tag]) => ({
-      title: `A tag called ${tag || "with that name"} is already on GitHub`,
+      title: tag ? `A tag called ${tag} is already on GitHub` : "That tag is already on GitHub",
       cause: "Tags mark a fixed point in history, so Git will not move one that has been pushed.",
       hint: "Pick a new tag name, for example the next version number, and push that instead.",
       commands: ["git tag NEW_TAG", "git push origin NEW_TAG"]
@@ -138,7 +152,16 @@ const KNOWN_ERRORS = [
     })
   },
   {
-    pattern: /Your local changes to the following files would be overwritten|cannot pull with rebase: You have unstaged changes/i,
+    pattern: /Your local changes to the following files would be overwritten by checkout/i,
+    explain: () => ({
+      title: "Switching branches would overwrite your unsaved changes",
+      cause: "You have edits that are not committed, and the other branch has different versions of those files.",
+      hint: "Put your changes aside, switch, then bring them back on whichever branch they belong to. Replace OTHER_BRANCH.",
+      commands: ["git stash", "git switch OTHER_BRANCH", "git stash pop"]
+    })
+  },
+  {
+    pattern: /Your local changes to the following files would be overwritten by merge|cannot pull with rebase: You have unstaged changes/i,
     explain: () => ({
       title: "You have unsaved changes in the way",
       cause: "Git will not pull while you have edits that are not committed, because they could be overwritten.",
