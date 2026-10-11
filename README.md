@@ -23,6 +23,32 @@ To test it against another project, run the script from that project's directory
 node /path/to/git-doctor/bin/git-doctor.js
 ```
 
+## Usage
+
+Run it from inside your project folder:
+
+```bash
+git-doctor            # check your setup and get numbered steps to fix it
+git-doctor --fix      # the same check, then offer to fix the simple problems
+git-doctor explain    # paste an error from git and get a plain-English fix
+git-doctor --help
+```
+
+`explain` also takes the error as an argument or from a pipe:
+
+```bash
+git-doctor explain "error: src refspec main does not match any"
+git push 2>&1 | git-doctor explain
+```
+
+It recognises the usual push failures: `Permission denied (publickey)`, removed password
+authentication, 403 and `Permission to ... denied`, `Repository not found`, rejected pushes,
+unrelated histories, missing upstream, files over 100 MB, GH007 private email, and network
+errors.
+
+The exit code is 0 when nothing is broken (warnings allowed), 1 when a check fails, and 2 for
+bad usage.
+
 ## Install globally for development
 
 ```bash
@@ -39,12 +65,19 @@ npx git-doctor
 ## What it checks
 
 - Git availability
-- Whether the current directory is inside a Git work tree
-- Current branch (including a possible detached HEAD)
+- Whether the current directory is inside a Git work tree, and whether you are in your home
+  folder by mistake or turned it into a repository
 - `user.name` and `user.email`
+- Current branch (including a possible detached HEAD) and whether it has any commits yet
 - Configured remotes and whether the selected remote looks like GitHub
-- Whether the current branch has an upstream
 - Whether `gh` is installed and reports an authenticated GitHub account
+- For HTTPS remotes, whether Git has a credential helper; for SSH remotes, whether
+  `~/.ssh` holds a public key
+- Whether the current branch has an upstream
+
+Problems are listed as numbered steps in the order that works, each with the exact commands
+to copy. When `gh` is signed in, those commands are filled in with your GitHub profile name,
+your private no-reply email, and a `gh repo create` named after the folder.
 
 ## Authentication guidance
 
@@ -61,7 +94,10 @@ Never paste a personal access token into `.git/config`, commit credentials, or s
 
 ## Safety and limitations
 
-- This tool is diagnostic only; it does not modify repository configuration or files.
+- A plain `git-doctor` run is read-only. Only `--fix` changes anything, and only these three
+  global settings: `user.name`, `user.email`, and `gh auth setup-git`. It shows each command
+  and runs it only when you type `y`. It never touches remotes, branches, or files, and
+  refuses to run without an interactive terminal.
 - It does not attempt a network push, so it cannot prove that GitHub will accept one.
 - A configured remote does not prove that the user has write permission.
 - A successful `gh auth status` does not guarantee that Git itself is using the same credentials, particularly with SSH remotes.
@@ -69,4 +105,4 @@ Never paste a personal access token into `.git/config`, commit credentials, or s
 
 ## Before publishing
 
-Choose a unique npm package name if `git-doctor` is already taken. Add tests, a license file, and a repository URL before publishing.
+Choose a unique npm package name if `git-doctor` is already taken. Add tests and a repository URL before publishing.
