@@ -86,7 +86,7 @@ function reportNoBranch(cwd, add) {
       {
         hint: "Finish it: fix any conflicts git status lists, git add those files, then continue.",
         commands: ["git status", "git rebase --continue"],
-        alternative: { hint: "Or cancel the rebase and go back to how things were.", commands: ["git rebase --abort"] }
+        more: [{ hint: "Or cancel the rebase and go back to how things were.", commands: ["git rebase --abort"] }]
       });
     return;
   }
@@ -378,7 +378,7 @@ function checkSshKey(add, remote, github) {
       ? {
         hint: "Simplest fix: switch this remote to HTTPS and skip SSH keys entirely.",
         commands: [`git remote set-url ${remote.name} ${httpsUrl}`],
-        alternative: { ...sshSetup, hint: `Or, to keep SSH, ${keySteps}` }
+        more: [{ ...sshSetup, hint: `Or, to keep SSH, ${keySteps}` }]
       }
       : sshSetup);
 }

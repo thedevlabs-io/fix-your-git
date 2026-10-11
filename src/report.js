@@ -28,7 +28,7 @@ function printStep(check, number) {
   const label = check.autoFix ? paint("dim", " (fix-your-git --fix can do this)") : "";
   console.log(`  ${paint("bold", `${number}. ${check.title}`)}${label}`);
   printFix(check);
-  if (check.alternative) printFix(check.alternative);
+  for (const block of check.more || []) printFix(block);
   console.log("");
 }
 
@@ -72,6 +72,7 @@ function printExplanation(result, firstErrorLine) {
   console.log(`  ${result.cause}\n`);
   console.log(paint("bold", "What to do"));
   printFix(result);
+  for (const block of result.more || []) printFix(block);
 }
 
 module.exports = { printReport, printExplanation };
