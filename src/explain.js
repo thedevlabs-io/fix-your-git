@@ -78,7 +78,7 @@ const KNOWN_ERRORS = [
     })
   },
   {
-    pattern: /Support for password authentication was removed|Invalid username or (password|token)|Authentication failed for/i,
+    pattern: /Support for password authentication was removed|Invalid username or (password|token)|Authentication failed/i,
     explain: () => ({
       title: "GitHub rejected your password",
       cause: "GitHub stopped accepting account passwords for git push in 2021. Git needs a token, which gh can set up for you.",
