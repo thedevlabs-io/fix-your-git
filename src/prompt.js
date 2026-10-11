@@ -2,11 +2,13 @@
 
 const readline = require("node:readline");
 
-const PASTE_IDLE_MS = 400;
+const PASTE_QUIET_MS = 100;
+const STALE_INPUT_MS = 100;
 
 function createPrompter() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const typedAhead = [];
+  const createdAt = Date.now();
   let pending = null;
   let closed = false;
 
@@ -15,7 +17,13 @@ function createPrompter() {
     pending = null;
     if (resolve) resolve(value);
   };
-  rl.on("line", line => (pending ? settle(line.trim()) : typedAhead.push(line.trim())));
+  rl.on("line", line => {
+    // Keys pressed while the slow check ran arrive at once; they must not
+    // answer (or confirm) a question the user has not seen yet.
+    if (Date.now() - createdAt < STALE_INPUT_MS) return;
+    if (pending) settle(line.trim());
+    else typedAhead.push(line.trim());
+  });
   rl.on("SIGINT", () => rl.close());
   rl.on("close", () => {
     closed = true;
@@ -46,20 +54,37 @@ function readAll(stream) {
   });
 }
 
-function readPastedBurst() {
-  const rl = readline.createInterface({ input: process.stdin });
+// Terminal mode keeps unfinished lines inside readline, so nothing pasted is
+// left in the tty buffer for the shell to run after we exit. A blank line
+// ends input only when typed after the paste went quiet, because git errors
+// contain blank lines of their own.
+function readPastedLines() {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
   const lines = [];
-  let idleTimer = null;
+  let lastLineAt = 0;
   return new Promise(resolve => {
     rl.on("line", line => {
+      const now = Date.now();
+      const quiet = now - lastLineAt > PASTE_QUIET_MS;
+      lastLineAt = now;
+      if (line.trim() === "" && quiet && lines.some(entry => entry.trim())) {
+        rl.close();
+        return;
+      }
       lines.push(line);
-      if (!lines.some(entry => entry.trim())) return;
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => rl.close(), PASTE_IDLE_MS);
     });
-    rl.on("SIGINT", () => rl.close());
+    const finishOnCtrlD = (_, key) => {
+      if (!key || !key.ctrl || key.name !== "d") return;
+      if (rl.line) lines.push(rl.line);
+      rl.close();
+    };
+    process.stdin.on("keypress", finishOnCtrlD);
+    rl.on("SIGINT", () => {
+      lines.length = 0;
+      rl.close();
+    });
     rl.on("close", () => {
-      clearTimeout(idleTimer);
+      process.stdin.off("keypress", finishOnCtrlD);
       resolve(lines.join("\n"));
     });
   });
@@ -68,7 +93,7 @@ function readPastedBurst() {
 function readPastedText(promptText) {
   if (!process.stdin.isTTY) return readAll(process.stdin);
   console.log(promptText);
-  return readPastedBurst();
+  return readPastedLines();
 }
 
 module.exports = { createPrompter, readPastedText };
