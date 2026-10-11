@@ -94,7 +94,7 @@ function listRemotes(cwd) {
     : [];
 }
 
-function checkRemote(cwd, add, branch) {
+function checkRemote(cwd, add) {
   const remotes = listRemotes(cwd);
   if (remotes.length === 0) {
     add("error", "Remote repository",
@@ -103,7 +103,7 @@ function checkRemote(cwd, add, branch) {
         hint: "Create an empty repository at https://github.com/new (leave README unticked), then connect it. Replace YOUR_USERNAME and REPOSITORY.",
         commands: ["git remote add origin https://github.com/YOUR_USERNAME/REPOSITORY.git"]
       });
-    return;
+    return null;
   }
 
   const remote = remotes.includes("origin") ? "origin" : remotes[0];
@@ -117,10 +117,10 @@ function checkRemote(cwd, add, branch) {
       commands: ["git remote -v", `git remote set-url ${remote} https://github.com/YOUR_USERNAME/REPOSITORY.git`]
     });
 
-  checkUpstream(cwd, add, branch, remotes);
+  return { name: remote, url: remoteUrl, remotes };
 }
 
-function checkUpstream(cwd, add, branch, remotes) {
+function checkUpstream(cwd, add, branch, { remotes }) {
   const upstream = run("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd);
   if (upstream.ok) {
     add("ok", "Branch tracking", `Tracks ${upstream.stdout}.`);
@@ -149,26 +149,42 @@ function checkGitHubCli(cwd, add) {
         hint: "It is the easiest way to sign Git in to GitHub. Install it from https://cli.github.com/, then reopen your terminal and sign in.",
         commands: ["gh auth login"]
       });
-    return;
+    return false;
   }
   const auth = run("gh", ["auth", "status", "--hostname", "github.com"], cwd);
   if (auth.ok) {
     add("ok", "GitHub CLI authentication",
       "gh reports an authenticated GitHub account. This does not guarantee the remote's authentication method or repository permissions are correct.");
-    add("warn", "Git credential setup",
-      "If pushing over HTTPS still reports an authentication error, Git may not be using the GitHub CLI as its credential helper.",
-      {
-        hint: "Let Git use your gh login for HTTPS pushes.",
-        commands: ["gh auth setup-git"]
-      });
-  } else {
-    add("warn", "GitHub CLI authentication",
-      "GitHub CLI authentication could not be verified. The diagnostic intentionally does not display authentication command output.",
-      {
-        hint: "Sign in and follow the prompts (choose GitHub.com, then HTTPS, then login with a web browser).",
-        commands: ["gh auth login"]
-      });
+    return true;
   }
+  add("warn", "GitHub CLI authentication",
+    "GitHub CLI authentication could not be verified. The diagnostic intentionally does not display authentication command output.",
+    {
+      hint: "Sign in and follow the prompts (choose GitHub.com, then HTTPS, then login with a web browser).",
+      commands: ["gh auth login"]
+    });
+  return false;
+}
+
+function isHttpsUrl(url) {
+  return /^https?:\/\//i.test(url);
+}
+
+function checkCredentialHelper(cwd, add, ghAuthenticated) {
+  const helpers = run("git", ["config", "--get-regexp", "^credential\\..*helper$"], cwd);
+  if (helpers.ok && helpers.stdout) {
+    const names = [...new Set(helpers.stdout.split(/\r?\n/).map(line => line.split(/\s+/).slice(1).join(" ")))];
+    const usesGh = names.some(name => name.includes("gh auth git-credential"));
+    add("ok", "Git credential setup",
+      `Git saves HTTPS logins with: ${names.join(", ")}.` +
+      (usesGh ? "" : " If git push asks for a password, run gh auth setup-git (GitHub does not accept account passwords)."));
+    return;
+  }
+  add("warn", "Git credential setup",
+    "Git has no credential helper, so HTTPS pushes will ask for a password. GitHub no longer accepts account passwords there.",
+    ghAuthenticated
+      ? { hint: "Let Git reuse your gh login for HTTPS pushes.", commands: ["gh auth setup-git"] }
+      : { hint: "Sign in with gh first (see the GitHub CLI step), then let Git reuse that login.", commands: ["gh auth setup-git"] });
 }
 
 function diagnose(cwd = process.cwd()) {
@@ -180,8 +196,10 @@ function diagnose(cwd = process.cwd()) {
   if (!checkRepository(cwd, add)) return { cwd, checks };
   const branch = checkBranch(cwd, add);
   checkAuthor(cwd, add);
-  checkRemote(cwd, add, branch);
-  checkGitHubCli(cwd, add);
+  const remote = checkRemote(cwd, add);
+  const ghAuthenticated = checkGitHubCli(cwd, add);
+  if (!remote || isHttpsUrl(remote.url)) checkCredentialHelper(cwd, add, ghAuthenticated);
+  if (remote) checkUpstream(cwd, add, branch, remote);
 
   return { cwd, checks };
 }
