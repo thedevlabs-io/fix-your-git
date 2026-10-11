@@ -256,8 +256,10 @@ function isHttpsUrl(url) {
 
 function checkCredentialHelper(cwd, add, ghAuthenticated) {
   const helpers = run("git", ["config", "--get-regexp", "^credential\\..*helper$"], cwd);
-  if (helpers.ok && helpers.stdout) {
-    const names = [...new Set(helpers.stdout.split(/\r?\n/).map(line => line.split(/\s+/).slice(1).join(" ")))];
+  const names = [...new Set(helpers.stdout.split(/\r?\n/)
+    .map(line => line.split(/\s+/).slice(1).join(" "))
+    .filter(Boolean))];
+  if (helpers.ok && names.length > 0) {
     const usesGh = names.some(name => name.includes("gh auth git-credential"));
     add("ok", "Git credential setup",
       `Git saves HTTPS logins with: ${names.join(", ")}.` +
