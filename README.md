@@ -128,7 +128,7 @@ The Release workflow checks that the tag matches `package.json` and publishes to
 trusted publishing, so no npm token is stored in GitHub. It also refuses a tag that points at
 a commit not on `main`.
 
-Trusted publishing can only be configured once the package exists on npm, so version 0.1.0
-was published by hand with `npm publish`. The package's settings on npmjs.com then got a
-trusted publisher: GitHub Actions, repository `thedevlabs-io/fix-your-git`, workflow
+Trusted publishing can only be configured once the package exists on npm. The first version
+is published by hand with `npm publish`. After that, add a trusted publisher in the package's
+settings on npmjs.com: GitHub Actions, repository `thedevlabs-io/fix-your-git`, workflow
 `release.yml`, environment `npm`.
