@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const os = require("node:os");
+const path = require("node:path");
 const { run, commandExists } = require("./run");
 
 function safeRemoteUrl(value) {
@@ -45,7 +46,7 @@ function checkRepository(cwd, add) {
         hint: "Do not run git init here: it would track every file you own. Move into your project folder and run git-doctor again (replace the path).",
         commands: ["cd path/to/your-project"]
       });
-    return false;
+    return null;
   }
   if (!repo.ok || repo.stdout !== "true") {
     add("error", "Git repository",
@@ -54,7 +55,7 @@ function checkRepository(cwd, add) {
         hint: "If this is the wrong folder, cd into your project first. If this is a new project, start a repository here.",
         commands: ["git init -b main"]
       });
-    return false;
+    return null;
   }
   const root = run("git", ["rev-parse", "--show-toplevel"], cwd).stdout;
   if (root && isHomeFolder(root)) {
@@ -63,10 +64,10 @@ function checkRepository(cwd, add) {
       {
         hint: "If you did not mean to do that, delete the hidden .git folder in your home folder (your files stay), then run git init -b main inside your project folder. If you track dotfiles there on purpose, ignore this."
       });
-    return true;
+    return root;
   }
   add("ok", "Git repository", `Repository root: ${root || "(could not determine root)"}`);
-  return true;
+  return root || cwd;
 }
 
 function checkBranch(cwd, add) {
@@ -94,29 +95,46 @@ function checkBranch(cwd, add) {
   return { branch, hasCommits };
 }
 
-function checkAuthor(cwd, add) {
+function isShellSafe(value) {
+  return Boolean(value) && !/["$`\\]/.test(value);
+}
+
+function checkAuthorName(cwd, add, github) {
   const name = run("git", ["config", "--get", "user.name"], cwd);
-  const email = run("git", ["config", "--get", "user.email"], cwd);
-  if (!name.ok || !name.stdout) {
-    add("warn", "Commit author name",
-      "Git user.name is not configured.",
-      {
-        hint: "Git puts this name on every commit. Replace Your Name with your own.",
-        commands: ['git config --global user.name "Your Name"']
-      });
-  } else {
+  if (name.ok && name.stdout) {
     add("ok", "Commit author name", "Configured.");
+    return;
   }
-  if (!email.ok || !email.stdout) {
-    add("warn", "Commit author email",
-      "Git user.email is not configured.",
-      {
-        hint: "Use the email of your GitHub account so commits link to your profile.",
-        commands: ['git config --global user.email "you@example.com"']
-      });
-  } else {
+  const knownName = isShellSafe(github.name) ? github.name : "";
+  add("warn", "Commit author name",
+    "Git user.name is not configured.",
+    {
+      hint: knownName
+        ? "Git puts this name on every commit. This is the name on your GitHub profile; change it if you like."
+        : "Git puts this name on every commit. Replace Your Name with your own.",
+      commands: [`git config --global user.name "${knownName || "Your Name"}"`]
+    });
+}
+
+function noReplyEmail(github) {
+  return github.login && github.id ? `${github.id}+${github.login}@users.noreply.github.com` : "";
+}
+
+function checkAuthorEmail(cwd, add, github) {
+  const email = run("git", ["config", "--get", "user.email"], cwd);
+  if (email.ok && email.stdout) {
     add("ok", "Commit author email", "Configured.");
+    return;
   }
+  const suggested = noReplyEmail(github);
+  add("warn", "Commit author email",
+    "Git user.email is not configured.",
+    {
+      hint: suggested
+        ? "This is your private GitHub no-reply address. It links commits to your profile without publishing your real email."
+        : "Use the email of your GitHub account so commits link to your profile.",
+      commands: [`git config --global user.email "${suggested || "you@example.com"}"`]
+    });
 }
 
 function listRemotes(cwd) {
@@ -126,15 +144,33 @@ function listRemotes(cwd) {
     : [];
 }
 
-function checkRemote(cwd, add) {
+function suggestedRepoName(root) {
+  return path.basename(root).replace(/[^A-Za-z0-9._-]+/g, "-") || "my-project";
+}
+
+function githubUrl(github, repoName) {
+  return `https://github.com/${github.login || "YOUR_USERNAME"}/${repoName}.git`;
+}
+
+function missingRemoteFix(github, repoName) {
+  if (github.authenticated) {
+    return {
+      hint: "This creates the repository on your GitHub account and connects it in one step. Use --public instead of --private if you want anyone to see it.",
+      commands: [`gh repo create ${repoName} --private --source=. --remote=origin`]
+    };
+  }
+  return {
+    hint: `Create an empty repository named ${repoName} at https://github.com/new (leave README unticked), then connect it. Replace YOUR_USERNAME.`,
+    commands: [`git remote add origin ${githubUrl(github, repoName)}`]
+  };
+}
+
+function checkRemote(cwd, add, github, repoName) {
   const remotes = listRemotes(cwd);
   if (remotes.length === 0) {
     add("error", "Remote repository",
       "No Git remote is configured, so Git does not know where to push.",
-      {
-        hint: "Create an empty repository at https://github.com/new (leave README unticked), then connect it. Replace YOUR_USERNAME and REPOSITORY.",
-        commands: ["git remote add origin https://github.com/YOUR_USERNAME/REPOSITORY.git"]
-      });
+      missingRemoteFix(github, repoName));
     return null;
   }
 
@@ -146,7 +182,7 @@ function checkRemote(cwd, add) {
     (remoteUrl ? ` URL: ${safeRemoteUrl(remoteUrl)}` : ""),
     isGitHub ? {} : {
       hint: "Check the URL. If it is wrong, replace it with your GitHub repository URL.",
-      commands: ["git remote -v", `git remote set-url ${remote} https://github.com/YOUR_USERNAME/REPOSITORY.git`]
+      commands: ["git remote -v", `git remote set-url ${remote} ${githubUrl(github, repoName)}`]
     });
 
   return { name: remote, url: remoteUrl, remotes };
@@ -182,21 +218,29 @@ function checkUpstream(cwd, add, { branch, hasCommits }, { remotes }) {
   }
 }
 
-function checkGitHubCli(cwd, add) {
-  if (!commandExists("gh", cwd)) {
+function readGitHubAccount(cwd) {
+  if (!commandExists("gh", cwd)) return { installed: false, authenticated: false };
+  const auth = run("gh", ["auth", "status", "--hostname", "github.com"], cwd);
+  if (!auth.ok) return { installed: true, authenticated: false };
+  const user = run("gh", ["api", "user", "--jq", '[.login, (.id | tostring), (.name // "")] | join("\\t")'], cwd);
+  const [login = "", id = "", name = ""] = user.ok ? user.stdout.split("\t") : [];
+  return { installed: true, authenticated: true, login, id, name };
+}
+
+function checkGitHubCli(add, github) {
+  if (!github.installed) {
     add("warn", "GitHub CLI",
       "The GitHub CLI (gh) was not found. Authentication status was not checked.",
       {
         hint: "It is the easiest way to sign Git in to GitHub. Install it from https://cli.github.com/, then reopen your terminal and sign in.",
         commands: ["gh auth login"]
       });
-    return false;
+    return;
   }
-  const auth = run("gh", ["auth", "status", "--hostname", "github.com"], cwd);
-  if (auth.ok) {
+  if (github.authenticated) {
     add("ok", "GitHub CLI authentication",
-      "gh reports an authenticated GitHub account. This does not guarantee the remote's authentication method or repository permissions are correct.");
-    return true;
+      `gh is signed in${github.login ? ` as ${github.login}` : ""}. This does not guarantee the remote's authentication method or repository permissions are correct.`);
+    return;
   }
   add("warn", "GitHub CLI authentication",
     "GitHub CLI authentication could not be verified. The diagnostic intentionally does not display authentication command output.",
@@ -204,7 +248,6 @@ function checkGitHubCli(cwd, add) {
       hint: "Sign in and follow the prompts (choose GitHub.com, then HTTPS, then login with a web browser).",
       commands: ["gh auth login"]
     });
-  return false;
 }
 
 function isHttpsUrl(url) {
@@ -234,12 +277,15 @@ function diagnose(cwd = process.cwd()) {
     checks.push({ status, title, message, ...fix });
 
   if (!checkGit(cwd, add)) return { cwd, checks };
-  if (!checkRepository(cwd, add)) return { cwd, checks };
-  checkAuthor(cwd, add);
+  const root = checkRepository(cwd, add);
+  if (!root) return { cwd, checks };
+  const github = readGitHubAccount(cwd);
+  checkAuthorName(cwd, add, github);
+  checkAuthorEmail(cwd, add, github);
   const branchState = checkBranch(cwd, add);
-  const remote = checkRemote(cwd, add);
-  const ghAuthenticated = checkGitHubCli(cwd, add);
-  if (!remote || isHttpsUrl(remote.url)) checkCredentialHelper(cwd, add, ghAuthenticated);
+  const remote = checkRemote(cwd, add, github, suggestedRepoName(root));
+  checkGitHubCli(add, github);
+  if (!remote || isHttpsUrl(remote.url)) checkCredentialHelper(cwd, add, github.authenticated);
   if (remote) checkUpstream(cwd, add, branchState, remote);
 
   return { cwd, checks };
