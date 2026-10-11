@@ -112,7 +112,13 @@ function checkAuthorName(cwd, add, github) {
       hint: knownName
         ? "Git puts this name on every commit. This is the name on your GitHub profile; change it if you like."
         : "Git puts this name on every commit. Replace Your Name with your own.",
-      commands: [`git config --global user.name "${knownName || "Your Name"}"`]
+      commands: [`git config --global user.name "${knownName || "Your Name"}"`],
+      autoFix: {
+        question: "Your name, as it should appear on commits",
+        defaultValue: github.name || "",
+        isValid: value => value.length > 0,
+        command: value => ["git", ["config", "--global", "user.name", value]]
+      }
     });
 }
 
@@ -133,7 +139,13 @@ function checkAuthorEmail(cwd, add, github) {
       hint: suggested
         ? "This is your private GitHub no-reply address. It links commits to your profile without publishing your real email."
         : "Use the email of your GitHub account so commits link to your profile.",
-      commands: [`git config --global user.email "${suggested || "you@example.com"}"`]
+      commands: [`git config --global user.email "${suggested || "you@example.com"}"`],
+      autoFix: {
+        question: "Your email for commits",
+        defaultValue: suggested,
+        isValid: value => /^[^\s@]+@[^\s@]+$/.test(value),
+        command: value => ["git", ["config", "--global", "user.email", value]]
+      }
     });
 }
 
@@ -269,7 +281,11 @@ function checkCredentialHelper(cwd, add, ghAuthenticated) {
   add("warn", "Git credential setup",
     "Git has no credential helper, so HTTPS pushes will ask for a password. GitHub no longer accepts account passwords there.",
     ghAuthenticated
-      ? { hint: "Let Git reuse your gh login for HTTPS pushes.", commands: ["gh auth setup-git"] }
+      ? {
+        hint: "Let Git reuse your gh login for HTTPS pushes.",
+        commands: ["gh auth setup-git"],
+        autoFix: { command: () => ["gh", ["auth", "setup-git"]] }
+      }
       : { hint: "Sign in with gh first (see the GitHub CLI step), then let Git reuse that login.", commands: ["gh auth setup-git"] });
 }
 

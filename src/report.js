@@ -25,7 +25,8 @@ function printFix({ hint, commands }) {
 }
 
 function printStep(check, number) {
-  console.log(`  ${paint("bold", `${number}. ${check.title}`)}`);
+  const label = check.autoFix ? paint("dim", " (git-doctor --fix can do this)") : "";
+  console.log(`  ${paint("bold", `${number}. ${check.title}`)}${label}`);
   printFix(check);
   if (check.alternative) printFix(check.alternative);
   console.log("");
@@ -36,13 +37,14 @@ function printNextSteps(problems) {
   console.log(paint("dim", "Work through these in order. Many later steps depend on earlier ones.\n"));
   problems.forEach((check, index) => printStep(check, index + 1));
   console.log("Run git-doctor again after each step to see what is left.");
+  console.log(`Got an error from git push? Run ${paint("cyan", "git-doctor explain")} and paste it.`);
 }
 
 function printSummary(checks) {
   const count = status => checks.filter(c => c.status === status).length;
   console.log(paint("dim",
     `\n${count("ok")} passed, ${count("warn")} warning(s), ${count("error")} error(s). ` +
-    "No repository settings or files were changed."));
+    "This check did not change anything."));
   console.log(paint("dim", "Local checks cannot guarantee that GitHub will accept a push."));
 }
 
