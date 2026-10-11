@@ -161,7 +161,7 @@ const KNOWN_ERRORS = [
       title: "This folder is not a Git repository",
       cause: "You are probably in the wrong folder, or the project was never set up with git init.",
       hint: "cd into your project folder and run fix-your-git. For a brand new project, start a repository there.",
-      commands: ["git init -b main"]
+      commands: ["git init", "git checkout -b main"]
     })
   },
   {

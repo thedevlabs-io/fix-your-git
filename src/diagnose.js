@@ -53,7 +53,7 @@ function checkRepository(cwd, add) {
       "This folder is not inside a Git working tree.",
       {
         hint: "If this is the wrong folder, cd into your project first. If this is a new project, start a repository here.",
-        commands: ["git init -b main"]
+        commands: ["git init", "git checkout -b main"]
       });
     return null;
   }
@@ -62,7 +62,7 @@ function checkRepository(cwd, add) {
     add("warn", "Git repository",
       `Your whole home folder (${root}) is a Git repository, usually from running git init in the wrong place.`,
       {
-        hint: "If you did not mean to do that, delete the hidden .git folder in your home folder (your files stay), then run git init -b main inside your project folder. If you track dotfiles there on purpose, ignore this."
+        hint: "If you did not mean to do that, delete the hidden .git folder in your home folder (your files stay), then run git init inside your project folder. If you track dotfiles there on purpose, ignore this."
       });
     return root;
   }
