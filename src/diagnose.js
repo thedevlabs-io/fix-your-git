@@ -106,35 +106,54 @@ function reportNoBranch(cwd, add) {
 
 const KEEP_OUT_OF_GIT = [".env", ".env.local", "node_modules", ".venv", "venv", "__pycache__"];
 
-function ignoreLine(root, name) {
-  return fs.statSync(path.join(root, name)).isDirectory() ? `${name}/` : name;
+const RISKY_SEARCH_DEPTH = 3;
+
+function findRiskyPaths(root, relative = "", depth = 0) {
+  if (depth > RISKY_SEARCH_DEPTH) return [];
+  let entries;
+  try {
+    entries = fs.readdirSync(path.join(root, relative), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries.flatMap(entry => {
+    const entryPath = relative ? `${relative}/${entry.name}` : entry.name;
+    if (KEEP_OUT_OF_GIT.includes(entry.name)) return [{ path: entryPath, name: entry.name, isDirectory: entry.isDirectory() }];
+    if (!entry.isDirectory() || entry.name === ".git") return [];
+    return findRiskyPaths(root, entryPath, depth + 1);
+  });
+}
+
+// Bare names like node_modules/ in .gitignore match at any depth.
+function ignoreLine({ name, isDirectory }) {
+  return isDirectory ? `${name}/` : name;
 }
 
 // --no-index checks the .gitignore rules alone; without it, a file that is
 // already staged reports as not ignored even after the rule is added.
 function riskyFileState(root) {
-  const present = KEEP_OUT_OF_GIT.filter(name => fs.existsSync(path.join(root, name)));
+  const present = findRiskyPaths(root);
   return {
-    unignored: present.filter(name => !run("git", ["check-ignore", "--quiet", "--no-index", name], root).ok),
-    staged: present.filter(name => run("git", ["ls-files", "--cached", "--", name], root).stdout !== "")
+    unignored: present.filter(entry => !run("git", ["check-ignore", "--quiet", "--no-index", entry.path], root).ok),
+    staged: present.filter(entry => run("git", ["ls-files", "--cached", "--", entry.path], root).stdout !== "")
   };
 }
 
 function checkIgnoreFile(root, add) {
   const { unignored, staged } = riskyFileState(root);
   if (unignored.length === 0 && staged.length === 0) return;
-  const names = [...new Set([...unignored, ...staged])].map(name => ignoreLine(root, name));
+  const paths = [...new Set([...unignored, ...staged].map(entry => entry.path))];
   const unstage = {
     hint: "These are already staged. Unstage them (the files stay on your disk).",
-    commands: staged.map(name => `git rm -r --cached ${name}`)
+    commands: staged.map(entry => `git rm -r --cached ${entry.path}`)
   };
   const addRules = {
     hint: "Open .gitignore in your project folder in your editor (create it if it does not exist).",
     commandsLabel: "Add these lines:",
-    commands: unignored.map(name => ignoreLine(root, name))
+    commands: [...new Set(unignored.map(ignoreLine))]
   };
   add("warn", "Files to keep out of Git",
-    `${names.join(", ")} would be included in your first commit. Secrets in .env become public once pushed, and dependency folders are huge.`,
+    `${paths.join(", ")} would be included in your first commit. Secrets in .env become public once pushed, and dependency folders are huge.`,
     unignored.length === 0 ? unstage : { ...addRules, more: staged.length > 0 ? [unstage] : [] });
 }
 
@@ -335,8 +354,9 @@ function checkGitHubCli(add, github) {
 
 function remoteKind(url) {
   if (/^https?:\/\//i.test(url)) return "https";
-  // scp-style "host:path"; the dot in the host keeps Windows drives like C: out.
-  if (/^ssh:\/\//i.test(url) || /^([\w.-]+@)?[\w-]+(\.[\w-]+)+:(?!\/\/)/.test(url)) return "ssh";
+  // scp-style "user@host:path" or "host.tld:path"; without a user, the host
+  // needs a dot so Windows drives like C: are not mistaken for SSH.
+  if (/^ssh:\/\//i.test(url) || /^(?:[\w.-]+@[\w.-]+|[\w-]+(?:\.[\w-]+)+):(?!\/\/)/.test(url)) return "ssh";
   return "other";
 }
 
