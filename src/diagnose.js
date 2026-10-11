@@ -208,7 +208,8 @@ function listRemotes(cwd) {
 }
 
 function suggestedRepoName(root) {
-  return path.basename(root).replace(/[^A-Za-z0-9._-]+/g, "-") || "my-project";
+  const name = path.basename(root).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "");
+  return name || "my-project";
 }
 
 function githubUrl(github, repoName) {
@@ -239,44 +240,46 @@ function checkRemote(cwd, add, github, repoName) {
 
   const remote = remotes.includes("origin") ? "origin" : remotes[0];
   const remoteUrl = run("git", ["remote", "get-url", remote], cwd).stdout;
+  const kind = remoteKind(remoteUrl);
   const isGitHub = /(^|[/:@])github\.com([/:]|$)/i.test(remoteUrl);
   add(isGitHub ? "ok" : "warn", "Remote repository",
     `${remote} is configured${isGitHub ? " for GitHub" : ", but its URL does not look like a GitHub URL"}.` +
     (remoteUrl ? ` URL: ${safeRemoteUrl(remoteUrl)}` : ""),
     isGitHub ? {} : {
-      hint: "Check the URL. If it is wrong, replace it with your GitHub repository URL.",
+      hint: "Check the URL. If it is wrong, replace it with your GitHub repository URL." +
+        (kind === "ssh" ? " If it is an SSH host alias from ~/.ssh/config, ignore this." : ""),
       commands: ["git remote -v", `git remote set-url ${remote} ${githubUrl(github, repoName)}`]
     });
 
-  return { name: remote, url: remoteUrl, remotes };
+  return { name: remote, url: remoteUrl, kind };
 }
 
-function checkUpstream(cwd, add, { branch, hasCommits }, { remotes }) {
+function checkUpstream(cwd, add, { branch, hasCommits }, { name: remote }) {
   if (!hasCommits) {
     add("warn", "Branch tracking",
       "Nothing to push until you make your first commit.",
       {
         hint: "After committing, push once with -u so Git remembers where this branch goes.",
-        commands: [`git push -u origin ${branch}`]
+        commands: [`git push -u ${remote} ${branch}`]
       });
     return;
   }
   const upstream = run("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd);
   if (upstream.ok) {
     add("ok", "Branch tracking", `Tracks ${upstream.stdout}.`);
-  } else if (branch && remotes.includes("origin")) {
+  } else if (branch) {
     add("warn", "Branch tracking",
       `Branch "${branch}" does not appear to track a remote branch.`,
       {
         hint: "Push once with -u so Git remembers where this branch goes. After that, plain git push works.",
-        commands: [`git push -u origin ${branch}`]
+        commands: [`git push -u ${remote} ${branch}`]
       });
   } else {
     add("warn", "Branch tracking",
       "An upstream branch could not be detected.",
       {
-        hint: "Push once with -u to set it. Replace REMOTE and BRANCH.",
-        commands: ["git push -u REMOTE BRANCH"]
+        hint: "Push once with -u to set it. Replace BRANCH with your branch name.",
+        commands: [`git push -u ${remote} BRANCH`]
       });
   }
 }
@@ -319,8 +322,10 @@ function checkGitHubCli(add, github) {
     });
 }
 
-function isHttpsUrl(url) {
-  return /^https?:\/\//i.test(url);
+function remoteKind(url) {
+  if (/^https?:\/\//i.test(url)) return "https";
+  if (/^ssh:\/\//i.test(url) || /^[\w.-]+@[\w.-]+:/.test(url)) return "ssh";
+  return "other";
 }
 
 function checkCredentialHelper(cwd, add, ghAuthenticated) {
@@ -356,8 +361,15 @@ function findSshPublicKeys() {
 }
 
 function sshToHttpsUrl(url) {
-  const match = url.match(/^(?:ssh:\/\/)?git@github\.com[:/](.+?)(?:\.git)?\/?$/i);
+  const match = url.match(/^ssh:\/\/git@github\.com(?::\d+)?\/(.+?)(?:\.git)?\/?$/i) ||
+    url.match(/^git@github\.com:(.+?)(?:\.git)?\/?$/i);
   return match ? `https://github.com/${match[1]}.git` : "";
+}
+
+function publicKeyPathForShell() {
+  return process.platform === "win32"
+    ? `"${path.join(os.homedir(), ".ssh", "id_ed25519.pub")}"`
+    : "~/.ssh/id_ed25519.pub";
 }
 
 function checkSshKey(add, remote, github) {
@@ -375,7 +387,7 @@ function checkSshKey(add, remote, github) {
     hint: `To fix this, ${keySteps}`,
     commands: [
       `ssh-keygen -t ed25519 -C "${email}"`,
-      ...(github.authenticated ? ['gh ssh-key add ~/.ssh/id_ed25519.pub --title "My computer"'] : [])
+      ...(github.authenticated ? [`gh ssh-key add ${publicKeyPathForShell()} --title "My computer"`] : [])
     ]
   };
   add("warn", "SSH key",
@@ -403,8 +415,8 @@ function diagnose(cwd = process.cwd()) {
   const branchState = checkBranch(cwd, add, root);
   const remote = checkRemote(cwd, add, github, suggestedRepoName(root));
   checkGitHubCli(add, github);
-  if (!remote || isHttpsUrl(remote.url)) checkCredentialHelper(cwd, add, github.authenticated);
-  else checkSshKey(add, remote, github);
+  if (!remote || remote.kind === "https") checkCredentialHelper(cwd, add, github.authenticated);
+  else if (remote.kind === "ssh") checkSshKey(add, remote, github);
   if (remote) checkUpstream(cwd, add, branchState, remote);
 
   return { cwd, checks };
