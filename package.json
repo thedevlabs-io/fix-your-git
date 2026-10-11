@@ -4,7 +4,7 @@
   "description": "Beginner-friendly diagnostics for Git and GitHub push problems",
   "type": "commonjs",
   "bin": {
-    "fix-your-git": "./bin/fix-your-git.js"
+    "fix-your-git": "bin/fix-your-git.js"
   },
   "engines": {
     "node": ">=18"
