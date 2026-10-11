@@ -16,6 +16,7 @@
     "developer-tools",
     "beginner"
   ],
+  "author": "thedevlabs-io <contact@thedevlabs.io>",
   "license": "MIT",
   "files": [
     "bin/",
