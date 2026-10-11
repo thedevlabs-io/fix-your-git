@@ -328,11 +328,20 @@ function remoteKind(url) {
   return "other";
 }
 
+// Git treats an empty helper value as "forget the helpers listed so far".
+function activeHelpers(configOutput) {
+  const active = [];
+  for (const line of configOutput.split(/\r?\n/).filter(Boolean)) {
+    const value = line.split(/\s+/).slice(1).join(" ");
+    if (value) active.push(value);
+    else active.length = 0;
+  }
+  return [...new Set(active)];
+}
+
 function checkCredentialHelper(cwd, add, ghAuthenticated) {
   const helpers = run("git", ["config", "--get-regexp", "^credential\\..*helper$"], cwd);
-  const names = [...new Set(helpers.stdout.split(/\r?\n/)
-    .map(line => line.split(/\s+/).slice(1).join(" "))
-    .filter(Boolean))];
+  const names = activeHelpers(helpers.stdout);
   if (helpers.ok && names.length > 0) {
     const usesGh = names.some(name => name.includes("gh auth git-credential"));
     add("ok", "Git credential setup",
